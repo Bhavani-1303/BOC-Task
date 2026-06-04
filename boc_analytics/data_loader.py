@@ -12,7 +12,20 @@ import streamlit as st
 from io import StringIO
 from pathlib import Path
 
-DUMP_PATH = Path(r"C:\BOC\bocdata 1")
+# ── Data file path ────────────────────────────────────────────────────────────
+# Supports both local Windows development and Streamlit Cloud (Linux) deployment.
+# On Streamlit Cloud the file must be committed to the repo at boc_analytics/bocdata 1
+_HERE = Path(__file__).parent                  # directory of data_loader.py
+_RELATIVE = _HERE / "bocdata 1"               # repo-relative path (Streamlit Cloud)
+_ABSOLUTE = Path(r"C:\BOC\bocdata 1")          # local Windows development path
+
+if _RELATIVE.exists():
+    DUMP_PATH = _RELATIVE
+elif _ABSOLUTE.exists():
+    DUMP_PATH = _ABSOLUTE
+else:
+    # Last resort: let it fail with a clear message
+    DUMP_PATH = _RELATIVE
 
 # ---------------------------------------------------------------------------
 # Low-level dump parser
