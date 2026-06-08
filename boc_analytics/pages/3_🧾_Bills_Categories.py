@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from data_loader import load_all
 
-st.set_page_config(page_title="BOC · Bills & Categories", page_icon="🧾", layout="wide")
+st.set_page_config(page_title="BOC · Bills & Categories", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -59,9 +59,9 @@ filtered = be[
 k1, k2, k3, k4, k5 = st.columns(5)
 kv = [
     ("🧾", f"{len(filtered):,}", "Bills (filtered)"),
-    ("💰", f"{filtered['totalAmount'].sum():,.0f}", "Total Spend (mixed currencies)"),
-    ("📊", f"{filtered['totalAmount'].mean():,.1f}", "Avg Bill Amount"),
-    ("📈", f"{filtered['totalAmount'].median():,.1f}", "Median Bill"),
+    ("💰", f"${filtered['totalAmount'].sum() / 83.0:,.0f}", "Total Spend (USD)"),
+    ("📊", f"${filtered['totalAmount'].mean() / 83.0:,.1f}", "Avg Bill Amount (USD)"),
+    ("📈", f"${filtered['totalAmount'].median() / 83.0:,.1f}", "Median Bill (USD)"),
     ("🏷️", str(filtered["category"].nunique()), "Categories"),
 ]
 for col,(icon,val,lbl) in zip([k1,k2,k3,k4,k5],kv):

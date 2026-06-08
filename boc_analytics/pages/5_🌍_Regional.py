@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from data_loader import load_all, CURRENCY_COUNTRY, CURRENCY_ISO3
 
-st.set_page_config(page_title="BOC · Regional", page_icon="🌍", layout="wide")
+st.set_page_config(page_title="BOC · Regional", page_icon="🌍", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');

@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from data_loader import load_all
 
-st.set_page_config(page_title="BOC · Users", page_icon="👥", layout="wide")
+st.set_page_config(page_title="BOC · Users", page_icon="👥", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -24,6 +24,37 @@ html,body,[class*="css"]{font-family:'Inter',sans-serif;}
 .user-table th{background:#1A1A2E!important;color:#a78bfa!important;}
 [data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
   border-right:1px solid rgba(124,58,237,0.2);}
+.kpi-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.kpi-box {
+    background:linear-gradient(135deg,#1A1A2E,#16213E);
+    border:1px solid rgba(52,211,153,0.2);
+    border-radius:14px;
+    padding:1rem;
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+}
+.kpi-top-bar {
+    position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,#10B981,#3B82F6);
+}
+.kpi-val {
+    font-size:1.6rem;font-weight:800;color:#34d399;
+}
+.kpi-lbl {
+    font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:2px;
+}
+.ml-insight-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -70,25 +101,52 @@ user["activity_segment"] = pd.cut(
 )
 
 # ── KPI Strip ─────────────────────────────────────────────────────────────────
-k1, k2, k3, k4, k5 = st.columns(5)
+wallet_connected = user["mainWalletAddress"].notna().sum() if "mainWalletAddress" in user.columns else 0
+wallet_pct = (wallet_connected / len(user) * 100) if len(user) > 0 else 0
+
 metrics = [
     ("👥", f"{len(user):,}", "Total Users"),
     ("✅", f"{(user['bill_count'] > 0).sum():,}", "Active Users"),
     ("😴", f"{(user['bill_count'] == 0).sum():,}", "No Bills Yet"),
     ("🏆", f"{(user['bill_count'] >= 10).sum():,}", "Power Users"),
+    ("💳", f"{wallet_pct:.1f}%", "Wallet Connected"),
     ("🎯", f"{user['lifetimeRewardPoints'].mean():.0f}", "Avg Reward Pts"),
 ]
-for col, (icon, val, lbl) in zip([k1,k2,k3,k4,k5], metrics):
-    col.markdown(f"""
-    <div style="background:linear-gradient(135deg,#1A1A2E,#16213E);border:1px solid rgba(52,211,153,0.2);
-    border-radius:14px;padding:1rem;text-align:center;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#10B981,#3B82F6);"></div>
-    <div style="font-size:1.5rem">{icon}</div>
-    <div style="font-size:1.6rem;font-weight:800;color:#34d399">{val}</div>
-    <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:2px">{lbl}</div>
-    </div>""", unsafe_allow_html=True)
+
+kpi_html = '<div class="kpi-container">'
+for icon, val, lbl in metrics:
+    kpi_html += f"""
+    <div class="kpi-box">
+        <div class="kpi-top-bar"></div>
+        <div style="font-size:1.5rem">{icon}</div>
+        <div class="kpi-val">{val}</div>
+        <div class="kpi-lbl">{lbl}</div>
+    </div>"""
+kpi_html += '</div>'
+st.markdown(kpi_html, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
+
+# ── ML Insights from Notebook ──────────────────────────────────────────────────
+# st.markdown("""
+# <div class="ml-insight-container">
+#     <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:1.5rem;">
+#         <div style="font-size:2rem;margin-bottom:0.5rem;">💳</div>
+#         <h4 style="color:#60a5fa;margin:0 0 0.5rem 0;">Wallet = 13× More Points</h4>
+#         <p style="color:#e2e8f0;font-size:0.9rem;margin:0;">Users who connect a decentralized wallet earn <strong>13 times more reward points</strong> than those who don't. Wallet connection is the strongest predictor of high platform engagement.</p>
+#     </div>
+#     <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:1.5rem;">
+#         <div style="font-size:2rem;margin-bottom:0.5rem;">👑</div>
+#         <h4 style="color:#F59E0B;margin:0 0 0.5rem 0;">Extreme Wealth Concentration</h4>
+#         <p style="color:#e2e8f0;font-size:0.9rem;margin:0;">The <strong>top 2 users own 52% of all reward points</strong> on the platform. The majority of organic users (80%) have earned zero points, indicating a steep onboarding drop-off.</p>
+#     </div>
+#     <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:1.5rem;">
+#         <div style="font-size:2rem;margin-bottom:0.5rem;">🐢</div>
+#         <h4 style="color:#34d399;margin:0 0 0.5rem 0;">Slow Engagers Earn 17× More</h4>
+#         <p style="color:#e2e8f0;font-size:0.9rem;margin:0;">Users who take time to explore before uploading their first bill end up earning <strong>17 times more points</strong>. Fast onboarding does not equal high retention.</p>
+#     </div>
+# </div>
+# """, unsafe_allow_html=True)
 
 # ── Row 1: User Growth + Bill Distribution ────────────────────────────────────
 r1, r2 = st.columns(2)

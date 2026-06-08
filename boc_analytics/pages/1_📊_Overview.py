@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from data_loader import load_all
 
-st.set_page_config(page_title="BOC · Overview", page_icon="📊", layout="wide")
+st.set_page_config(page_title="BOC · Overview", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -27,6 +27,18 @@ html,body,[class*="css"]{font-family:'Inter',sans-serif;}
 .m-lbl{font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:2px;}
 [data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
   border-right:1px solid rgba(124,58,237,0.2);}
+.kpi-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.kpi-container-large {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,9 +60,9 @@ total_nfts      = len(nft)
 total_merchants = int(be["merchantName"].nunique()) if "merchantName" in be.columns else 0
 total_currencies= int(be["currency"].nunique())     if "currency"     in be.columns else 0
 
-# Spend: show with unit "units" since currencies are mixed (IDR, INR, NGN etc.)
-total_spend_num = float(be["totalAmount"].sum())  if "totalAmount" in be.columns else 0
-avg_spend_num   = float(be["totalAmount"].mean()) if "totalAmount" in be.columns else 0
+# Spend: Convert from INR to USD by dividing by 83
+total_spend_num = (float(be["totalAmount"].sum()) / 83.0) if "totalAmount" in be.columns else 0
+avg_spend_num   = (float(be["totalAmount"].mean()) / 83.0) if "totalAmount" in be.columns else 0
 top_category    = be["category"].value_counts().idxmax() if "category" in be.columns and len(be) else "N/A"
 
 # Fraud stats
@@ -63,7 +75,6 @@ st.markdown('<div class="page-title">📊 Platform Overview</div>', unsafe_allow
 st.markdown('<div class="page-sub">Key performance indicators and platform-wide trends — sourced from BOC database</div>', unsafe_allow_html=True)
 
 # ── KPI Cards (7 metrics from real data) ──────────────────────────────────────
-kpi_cols = st.columns(7)
 kpis = [
     ("👥", f"{total_users:,}",       "Users"),
     ("🧾", f"{total_bills:,}",       "Bills Uploaded"),
@@ -73,31 +84,53 @@ kpis = [
     ("🏪", f"{total_merchants:,}",   "Merchants"),
     ("🌍", f"{total_currencies:,}",  "Currencies"),
 ]
-for col, (icon, val, lbl) in zip(kpi_cols, kpis):
-    col.markdown(f"""<div class="metric-box">
+
+kpi_html = '<div class="kpi-container">'
+for icon, val, lbl in kpis:
+    kpi_html += f"""
+    <div class="metric-box">
         <div style="font-size:1.4rem">{icon}</div>
         <div class="m-val">{val}</div>
         <div class="m-lbl">{lbl}</div>
-    </div>""", unsafe_allow_html=True)
+    </div>"""
+kpi_html += '</div>'
+st.markdown(kpi_html, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Second row of KPIs — spend metrics
-k2_cols = st.columns(4)
 k2_data = [
-    ("💰", f"{total_spend_num:,.0f}", "Total Spend (all currencies)"),
-    ("📊", f"{avg_spend_num:,.1f}",  "Avg Bill Amount"),
+    ("💰", f"${total_spend_num:,.0f}", "Total Spend (USD)"),
+    ("📊", f"${avg_spend_num:,.1f}",  "Avg Bill Amount (USD)"),
     ("🏷️", top_category.title(),     "Top Spend Category"),
     ("🛡️", f"{fraud_pass_rate:.1f}%","Fraud Pass Rate"),
 ]
-for col, (icon, val, lbl) in zip(k2_cols, k2_data):
-    col.markdown(f"""<div class="metric-box">
+
+k2_html = '<div class="kpi-container-large">'
+for icon, val, lbl in k2_data:
+    k2_html += f"""
+    <div class="metric-box">
         <div style="font-size:1.4rem">{icon}</div>
         <div class="m-val">{val}</div>
         <div class="m-lbl">{lbl}</div>
-    </div>""", unsafe_allow_html=True)
+    </div>"""
+k2_html += '</div>'
+st.markdown(k2_html, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
+
+# ── Critical Insight: Referral Bug ───────────────────────────────────────────
+# st.markdown("""
+# <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.5rem;margin-bottom:2rem;">
+# <div style="display:flex;align-items:center;gap:1rem;">
+# <div style="font-size:2rem;">🐛</div>
+# <div>
+# <h4 style="color:#f87171;margin-top:0;margin-bottom:0.5rem;">Critical Issue: Referral Bonus Bug (Action Required)</h4>
+# <p style="color:#e2e8f0;margin-bottom:0;">Data analysis reveals that <strong>43 users</strong> have successfully referred others but have <strong>not received their referral bonus</strong>. This bug is actively suppressing engagement and directly contributes to the finding that 51% of users have zero reward points.</p>
+# </div>
+# </div>
+# </div>
+# """, unsafe_allow_html=True)
 
 # ── Row 1: Monthly Bills Uploaded (date-picker) + Category Treemap ────────────
 r1c1, r1c2 = st.columns([3, 2])
@@ -418,4 +451,4 @@ with st.sidebar:
         st.markdown(f"**Fraud checks:** {fraud_total:,}")
         st.markdown(f"**Fraud pass rate:** {fraud_pass_rate:.1f}%")
     if avg_spend_num > 0:
-        st.markdown(f"**Avg bill amount:** {avg_spend_num:,.1f} (mixed currencies)")
+        st.markdown(f"**Avg bill amount:** ${avg_spend_num:,.1f} (USD)")

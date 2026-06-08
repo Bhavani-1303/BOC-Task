@@ -12,7 +12,7 @@ import numpy as np
 from collections import Counter
 from data_loader import load_all
 
-st.set_page_config(page_title="BOC · Merchants & Items", page_icon="🏪", layout="wide")
+st.set_page_config(page_title="BOC · Merchants & Items", page_icon="🏪", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -49,13 +49,21 @@ be_clean = be.dropna(subset=["merchantName"]).copy()
 with st.sidebar:
     st.markdown("### 🔽 Filters")
     top_n = st.slider("Top N Merchants", 5, 50, 20)
+    
+    all_merchants = sorted(be_clean["merchantName"].dropna().unique().tolist())
+    sel_merchants = st.multiselect("Search Merchant(s)", all_merchants, default=[], placeholder="Type to search merchants...")
+    
     all_cats = sorted(be["category"].dropna().unique().tolist())
     sel_cats = st.multiselect("Category Filter", all_cats, default=all_cats)
     st.markdown("---")
     st.markdown(f"**Unique Merchants:** {be_clean['merchantName'].nunique():,}")
     st.markdown(f"**With Line Items:** {(be['lineItems_parsed'].apply(len) > 0).sum():,}")
 
-cat_filtered = be_clean[be_clean["category"].isin(sel_cats)] if sel_cats else be_clean
+cat_filtered = be_clean.copy()
+if sel_cats:
+    cat_filtered = cat_filtered[cat_filtered["category"].isin(sel_cats)]
+if sel_merchants:
+    cat_filtered = cat_filtered[cat_filtered["merchantName"].isin(sel_merchants)]
 
 # ── Merchant Stats ─────────────────────────────────────────────────────────────
 merchant_freq  = cat_filtered.groupby("merchantName").agg(
@@ -153,7 +161,7 @@ st.markdown("### 🛒 Item-Level Analysis")
 
 # Extract all items
 all_items = []
-for items in be["lineItems_parsed"].dropna():
+for items in cat_filtered["lineItems_parsed"].dropna():
     if isinstance(items, list):
         all_items.extend([str(i).strip() for i in items if i and len(str(i).strip()) > 2])
 
@@ -194,11 +202,11 @@ with i2:
     st.markdown("#### 🔍 Merchant → Item Drill-Down")
     sel_merchant = st.selectbox(
         "Select a merchant:",
-        options=merchant_freq.head(50)["merchantName"].tolist(),
+        options=sorted(merchant_freq["merchantName"].tolist()),
         key="merch_select"
     )
     if sel_merchant:
-        merch_bills = be[be["merchantName"] == sel_merchant].copy()
+        merch_bills = cat_filtered[cat_filtered["merchantName"] == sel_merchant].copy()
         m_items = []
         for items in merch_bills["lineItems_parsed"].dropna():
             if isinstance(items, list):
