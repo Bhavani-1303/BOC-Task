@@ -235,4 +235,4 @@ with st.expander("📋 View Full User Segment Data"):
     # Format
     display_df["Monetary"] = display_df["Monetary"].apply(lambda x: f"{x:,.2f}")
     
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, width='stretch', hide_index=True)

@@ -96,5 +96,5 @@ st.markdown(
 # Button nested inside a perfectly sized column so it centers natively
 col1, col2, col3 = st.columns([1, 1.5, 1])
 with col2:
-    if st.button("Enter Dashboard ➔", use_container_width=True):
+    if st.button("Enter Dashboard ➔", type="primary", width='stretch'):
         st.switch_page("pages/1_📊_Overview.py")
