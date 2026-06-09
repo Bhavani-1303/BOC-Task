@@ -9,24 +9,25 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from data_loader import load_all
+from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Overview", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;}
-.page-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#60a5fa);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.2rem;}
-.page-sub{color:#64748b;font-size:0.95rem;margin-bottom:1.5rem;}
-.metric-box{background:linear-gradient(135deg,#1A1A2E,#16213E);border:1px solid rgba(124,58,237,0.25);
-  border-radius:14px;padding:1.2rem 1.5rem;position:relative;overflow:hidden;}
+html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#FFFFFF;color:#1E293B;}
+.page-title{font-size:2rem;font-weight:800;color:#1E293B;margin-bottom:0.2rem;}
+.page-sub{color:#64748B;font-size:0.95rem;margin-bottom:1.5rem;}
+.metric-box{background:#FFFFFF;border:1px solid #E2E8F0;
+  border-radius:14px;padding:1.2rem 1.5rem;position:relative;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);}
 .metric-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#7C3AED,#3B82F6);}
-.m-val{font-size:1.9rem;font-weight:800;color:#a78bfa;}
-.m-lbl{font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:2px;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
-  border-right:1px solid rgba(124,58,237,0.2);}
+  background:linear-gradient(90deg,#CBD5E1,#94A3B8);}
+.m-val{font-size:1.9rem;font-weight:800;color:#1E293B;}
+.m-lbl{font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:#94A3B8;margin-top:2px;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F172A,#1E293B) !important;
+  border-right:1px solid #334155;}
 .kpi-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -41,6 +42,9 @@ html,body,[class*="css"]{font-family:'Inter',sans-serif;}
 }
 </style>
 """, unsafe_allow_html=True)
+
+inject_shared_styles()
+inject_sidebar_brand()
 
 # ── Load real data from bocdata 1 ─────────────────────────────────────────────
 dfs  = load_all()
@@ -60,13 +64,13 @@ total_nfts      = len(nft)
 total_merchants = int(be["merchantName"].nunique()) if "merchantName" in be.columns else 0
 total_currencies= int(be["currency"].nunique())     if "currency"     in be.columns else 0
 
-# Spend: show with unit "units" since currencies are mixed (IDR, INR, NGN etc.)
-total_spend_num = float(be["totalAmount"].sum())  if "totalAmount" in be.columns else 0
-avg_spend_num   = float(be["totalAmount"].mean()) if "totalAmount" in be.columns else 0
+# Spend: Convert from INR to USD by dividing by 83
+total_spend_num = (float(be["totalAmount"].sum()) / 83.0) if "totalAmount" in be.columns else 0
+avg_spend_num   = (float(be["totalAmount"].mean()) / 83.0) if "totalAmount" in be.columns else 0
 top_category    = be["category"].value_counts().idxmax() if "category" in be.columns and len(be) else "N/A"
 
 # Fraud stats
-fraud_passed    = int((fc["decision"] == "pass").sum()) if "decision" in fc.columns and len(fc) else 0
+fraud_passed    = int(fc["decision"].isin(["pass", "fraud_passed"]).sum()) if "decision" in fc.columns and len(fc) else 0
 fraud_total     = len(fc)
 fraud_pass_rate = (fraud_passed / fraud_total * 100) if fraud_total > 0 else 0
 
@@ -100,8 +104,8 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Second row of KPIs — spend metrics
 k2_data = [
-    ("💰", f"{total_spend_num:,.0f}", "Total Spend (all currencies)"),
-    ("📊", f"{avg_spend_num:,.1f}",  "Avg Bill Amount"),
+    ("💰", f"${total_spend_num:,.0f}", "Total Spend (USD)"),
+    ("📊", f"${avg_spend_num:,.1f}",  "Avg Bill Amount (USD)"),
     ("🏷️", top_category.title(),     "Top Spend Category"),
     ("🛡️", f"{fraud_pass_rate:.1f}%","Fraud Pass Rate"),
 ]
@@ -119,18 +123,7 @@ st.markdown(k2_html, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Critical Insight: Referral Bug ───────────────────────────────────────────
-# st.markdown("""
-# <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:1.5rem;margin-bottom:2rem;">
-# <div style="display:flex;align-items:center;gap:1rem;">
-# <div style="font-size:2rem;">🐛</div>
-# <div>
-# <h4 style="color:#f87171;margin-top:0;margin-bottom:0.5rem;">Critical Issue: Referral Bonus Bug (Action Required)</h4>
-# <p style="color:#e2e8f0;margin-bottom:0;">Data analysis reveals that <strong>43 users</strong> have successfully referred others but have <strong>not received their referral bonus</strong>. This bug is actively suppressing engagement and directly contributes to the finding that 51% of users have zero reward points.</p>
-# </div>
-# </div>
-# </div>
-# """, unsafe_allow_html=True)
+st.info('📈 **Monthly Trends & Activity** — The bar chart below tracks bill uploads over time, helping identify growth trends and seasonal spikes. The donut chart highlights user engagement, showing how many users actively upload bills vs. those who have gone inactive.')
 
 # ── Row 1: Monthly Bills Uploaded (date-picker) + Category Treemap ────────────
 r1c1, r1c2 = st.columns([3, 2])
@@ -180,32 +173,32 @@ with r1c1:
                 name="Bills Uploaded",
                 marker=dict(
                     color=monthly["uploaded"],
-                    colorscale=[[0, "#3B1FA8"], [0.4, "#7C3AED"], [1, "#a78bfa"]],
+                    colorscale=[[0, "#C7D2FE"], [0.4, "#818CF8"], [1, "#4F46E5"]],
                     showscale=False,
                     line=dict(width=0),
                 ),
                 text=monthly["uploaded"],
                 textposition="outside",
-                textfont=dict(size=11, color="#e2e8f0"),
+                textfont=dict(size=11, color="#334155"),
             ))
             fig.update_layout(
                 title=f"📅 Monthly Bills Uploaded  ·  {total_in_range:,} bills in range",
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0", family="Inter"),
-                title_font=dict(color="#a78bfa", size=15),
+                font=dict(color="#334155", family="Inter"),
+                title_font=dict(color="#1E293B", size=15),
                 height=380,
                 margin=dict(l=10, r=20, t=55, b=10),
                 xaxis=dict(
-                    gridcolor="rgba(255,255,255,0.05)",
+                    gridcolor="rgba(0,0,0,0.06)",
                     tickangle=-30,
-                    tickfont=dict(size=10),
+                    tickfont=dict(size=10, color="#64748B"),
                 ),
                 yaxis=dict(
                     title="Bills Uploaded",
-                    gridcolor="rgba(255,255,255,0.05)",
-                    title_font=dict(color="#a78bfa"),
-                    tickfont=dict(color="#a78bfa"),
+                    gridcolor="rgba(0,0,0,0.06)",
+                    title_font=dict(color="#475569"),
+                    tickfont=dict(color="#64748B"),
                 ),
                 showlegend=False,
             )
@@ -235,8 +228,8 @@ with r1c2:
             "Status": ["Power Users (10+ bills)", "Light Users (1–9 bills)", "Inactive (0 bills)"],
             "Count":  [power_users, light_users, inactive_count],
         })
-        status_colors = {"Power Users (10+ bills)": "#34d399",
-                         "Light Users (1–9 bills)": "#7C3AED",
+        status_colors = {"Power Users (10+ bills)": "#10B981",
+                         "Light Users (1–9 bills)": "#6366F1",
                          "Inactive (0 bills)":       "#EF4444"}
 
         fig = px.pie(
@@ -248,20 +241,20 @@ with r1c2:
         )
         fig.update_traces(
             textinfo="label+percent+value",
-            textfont=dict(size=11),
+            textfont=dict(size=11, color="#334155"),
             pull=[0.04, 0.02, 0.02],
         )
         active_pct = active_count / max(len(_user), 1) * 100
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0", family="Inter"),
-            title_font=dict(color="#a78bfa", size=15),
+            font=dict(color="#334155", family="Inter"),
+            title_font=dict(color="#1E293B", size=15),
             height=380,
             margin=dict(l=10, r=10, t=55, b=10),
             legend=dict(
-                font=dict(size=10),
-                bgcolor="rgba(0,0,0,0.3)",
-                bordercolor="rgba(124,58,237,0.3)",
+                font=dict(size=10, color="#475569"),
+                bgcolor="rgba(248,250,252,0.8)",
+                bordercolor="#E2E8F0",
                 borderwidth=1,
                 orientation="h",
                 x=0.0, y=-0.12,
@@ -270,7 +263,7 @@ with r1c2:
                 dict(
                     text=f"<b>{active_pct:.0f}%</b><br>Active",
                     x=0.5, y=0.5,
-                    font=dict(size=17, color="#34d399"),
+                    font=dict(size=17, color="#10B981"),
                     showarrow=False,
                 )
             ],
@@ -278,6 +271,7 @@ with r1c2:
         st.plotly_chart(fig, width='stretch')
 
 # ── Row 2: Bill Status Pipeline  +  Fraud Decision Donut ─────────────────────
+st.info('⚙️ **Pipeline Health & Fraud Detection** — The status breakdown shows how bills move through the processing pipeline (upload → extraction → completion). The fraud detection chart reveals the pass/reject ratio from automated integrity checks.')
 r2c1, r2c2 = st.columns(2)
 
 with r2c1:
@@ -289,7 +283,7 @@ with r2c1:
                 return "#10B981"
             elif any(k in s for k in ["fail","reject","flag","duplicate"]):
                 return "#EF4444"
-            return "#7C3AED"
+            return "#6366F1"
         s_counts["color"] = s_counts["status"].apply(status_color)
         s_counts = s_counts.sort_values("count", ascending=True)
         fig = go.Figure(go.Bar(
@@ -297,15 +291,15 @@ with r2c1:
             marker_color=s_counts["color"],
             text=s_counts["count"],
             textposition="outside",
-            textfont=dict(color="#e2e8f0", size=11),
+            textfont=dict(color="#334155", size=11),
         ))
         fig.update_layout(
             title="⚙️ Bill Status Breakdown",
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0"), title_font=dict(color="#a78bfa", size=15),
+            font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
             height=400, margin=dict(l=10,r=80,t=50,b=10),
-            xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+            xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+            yaxis=dict(gridcolor="rgba(0,0,0,0.06)", tickfont=dict(color="#475569")),
         )
         st.plotly_chart(fig, width='stretch')
 
@@ -313,29 +307,29 @@ with r2c2:
     if fraud_total > 0 and "decision" in fc.columns:
         d_counts = fc["decision"].value_counts().reset_index()
         d_counts.columns = ["decision", "count"]
-        colors_map = {"pass": "#10B981", "fail": "#EF4444", "review": "#F59E0B"}
+        colors_map = {"fraud_passed": "#10B981", "fraud_rejected": "#EF4444", "pass": "#10B981", "fail": "#EF4444", "review": "#F59E0B"}
         fig = px.pie(
             d_counts, values="count", names="decision",
-            title=f"🔍 Fraud Decision Split  ·  {fraud_total:,} checks  ·  {fraud_pass_rate:.1f}% pass",
+            title=f"🔍 Fraud Decision Split  ·  {fraud_total:,} checks",
             hole=0.60,
             color="decision",
             color_discrete_map=colors_map,
         )
         fig.update_traces(
             textinfo="label+percent+value",
-            textfont=dict(size=12),
+            textfont=dict(size=12, color="#334155"),
             pull=[0.04] * len(d_counts),
         )
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0", family="Inter"),
-            title_font=dict(color="#a78bfa", size=14),
-            height=400,
-            margin=dict(l=10, r=10, t=60, b=10),
+            font=dict(color="#334155", family="Inter"),
+            title_font=dict(color="#1E293B", size=14),
+            height=450,
+            margin=dict(l=10, r=10, t=80, b=20),
             legend=dict(
-                font=dict(size=11),
-                bgcolor="rgba(0,0,0,0.3)",
-                bordercolor="rgba(124,58,237,0.3)",
+                font=dict(size=11, color="#475569"),
+                bgcolor="rgba(248,250,252,0.8)",
+                bordercolor="#E2E8F0",
                 borderwidth=1,
             ),
             annotations=[
@@ -354,6 +348,7 @@ with r2c2:
 
 # ── Row 3: Fraud Score Distribution  +  Fraud Checks by Vendor ────────────────
 st.markdown("<br>", unsafe_allow_html=True)
+st.info('📊 **Fraud Analysis Deep Dive** — The histogram shows the distribution of fraud confidence scores (0 = definitely legitimate, 1 = definitely fraudulent). The vendor chart reveals which fraud-checking providers are most utilized. Flags highlight the most common reasons bills get flagged for review.')
 if fraud_total > 0:
 
     import json
@@ -366,14 +361,14 @@ if fraud_total > 0:
             fig = px.histogram(
                 fc.dropna(subset=["score"]), x="score", nbins=30,
                 title="📊 Fraud Score Distribution",
-                color_discrete_sequence=["#7C3AED"],
+                color_discrete_sequence=["#6366F1"],
             )
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"), title_font=dict(color="#a78bfa", size=14),
+                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
                 height=320, margin=dict(l=10, r=10, t=55, b=10),
-                xaxis=dict(title="Fraud Score (0–1)", gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+                xaxis=dict(title="Fraud Score (0–1)", gridcolor="rgba(0,0,0,0.06)"),
+                yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
                 showlegend=False,
             )
             st.plotly_chart(fig, width='stretch')
@@ -388,20 +383,20 @@ if fraud_total > 0:
                 orientation="h",
                 marker=dict(
                     color=v_counts["count"][::-1],
-                    colorscale=[[0, "#0d1b4b"], [0.5, "#3B82F6"], [1, "#06B6D4"]],
+                    colorscale=[[0, "#C7D2FE"], [0.5, "#818CF8"], [1, "#4F46E5"]],
                     showscale=False,
                 ),
                 text=v_counts["count"][::-1],
                 textposition="outside",
-                textfont=dict(color="#e2e8f0", size=10),
+                textfont=dict(color="#334155", size=10),
             ))
             fig.update_layout(
                 title="🏢 Fraud Checks by Vendor",
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"), title_font=dict(color="#a78bfa", size=14),
+                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
                 height=320, margin=dict(l=10, r=80, t=55, b=10),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.0)", tickfont=dict(size=10)),
+                xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+                yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(size=10, color="#475569")),
             )
             st.plotly_chart(fig, width='stretch')
 
@@ -424,14 +419,14 @@ if fraud_total > 0:
                 flag_df, x="count", y="flag", orientation="h",
                 title="🚩 Most Common Fraud Flags",
                 color="count",
-                color_continuous_scale=["#1a0533", "#EF4444"],
+                color_continuous_scale=["#FEE2E2", "#F87171", "#DC2626"],
             )
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"), title_font=dict(color="#a78bfa", size=13),
+                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=13),
                 height=350, margin=dict(l=10, r=10, t=50, b=10),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.0)"),
+                xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+                yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(color="#475569")),
                 coloraxis_showscale=False, showlegend=False,
             )
             st.plotly_chart(fig, width='stretch')
@@ -451,4 +446,4 @@ with st.sidebar:
         st.markdown(f"**Fraud checks:** {fraud_total:,}")
         st.markdown(f"**Fraud pass rate:** {fraud_pass_rate:.1f}%")
     if avg_spend_num > 0:
-        st.markdown(f"**Avg bill amount:** {avg_spend_num:,.1f} (mixed currencies)")
+        st.markdown(f"**Avg bill amount:** ${avg_spend_num:,.1f} (USD)")

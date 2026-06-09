@@ -12,27 +12,30 @@ import plotly.graph_objects as go
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from data_loader import load_all
+from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Customer Segmentation", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;}
-.page-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#06B6D4,#3B82F6);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.2rem;}
-.page-sub{color:#64748b;font-size:0.95rem;margin-bottom:1.5rem;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
-  border-right:1px solid rgba(124,58,237,0.2);}
-.cluster-card{background:linear-gradient(135deg,#1A1A2E,#16213E);
-  border:1px solid rgba(124,58,237,0.3);border-radius:12px;padding:1.5rem;
-  margin-bottom:1rem;height:100%;}
-.cluster-title{font-size:1.1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;}
+html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#FFFFFF;color:#1E293B;}
+.page-title{font-size:2rem;font-weight:800;color:#1E293B;margin-bottom:0.2rem;}
+.page-sub{color:#64748B;font-size:0.95rem;margin-bottom:1.5rem;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F172A,#1E293B) !important;
+  border-right:1px solid #334155;}
+.cluster-card{background:#FFFFFF;
+  border:1px solid #E2E8F0;border-radius:12px;padding:1.5rem;
+  margin-bottom:1rem;height:100%;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.cluster-title{font-size:1.1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;color:#1E293B;}
 .stat-row{display:flex;justify-content:space-between;margin-bottom:0.5rem;font-size:0.9rem;}
-.stat-label{color:#94a3b8;}
-.stat-value{font-weight:600;color:#e2e8f0;}
+.stat-label{color:#64748B;}
+.stat-value{font-weight:600;color:#1E293B;}
 </style>
 """, unsafe_allow_html=True)
+
+inject_shared_styles()
+inject_sidebar_brand()
 
 dfs = load_all()
 bill = dfs.get("bill", pd.DataFrame())
@@ -49,17 +52,19 @@ if bill.empty or be.empty or users.empty:
 # ── Data Preparation (RFM Calculation) ─────────────────────────────────────────
 
 # Merge bill and bill_extraction to get totalAmount for each bill
-merged = bill.merge(be, left_on="id", right_on="billId", how="inner", suffixes=("_bill", "_be"))
+# De-duplicate: take only the first extraction per bill to avoid inflated counts
+be_dedup = be.drop_duplicates(subset=["billId"], keep="first") if "billId" in be.columns else be
+merged = bill.merge(be_dedup[["billId", "totalAmount"]], left_on="id", right_on="billId", how="inner", suffixes=("_bill", "_be"))
 # Filter out rows with negative or zero amounts just in case
 merged = merged[merged["totalAmount"] > 0].copy()
 
 # Determine the "current" date for Recency calculation (max date in dataset)
-max_date = merged["createdAt_bill"].max()
+max_date = merged["createdAt"].max()
 
 # Calculate RFM metrics per user
 rfm = merged.groupby("userId").agg(
-    LatestDate=("createdAt_bill", "max"),
-    Frequency=("id_bill", "nunique"),
+    LatestDate=("createdAt", "max"),
+    Frequency=("id", "nunique"),
     Monetary=("totalAmount", "sum")
 ).reset_index()
 
@@ -70,9 +75,14 @@ rfm["Recency"] = (max_date - rfm["LatestDate"]).dt.days
 rfm = rfm.merge(users[["id", "name", "email"]], left_on="userId", right_on="id", how="left")
 rfm = rfm.dropna(subset=["Recency", "Frequency", "Monetary"])
 
-if len(rfm) < 10:
+total_clustered = len(rfm)
+total_all_users = len(users)
+
+if total_clustered < 10:
     st.warning("Not enough users with valid transaction history to perform clustering.")
     st.stop()
+
+st.caption(f"ℹ️ Clustering covers **{total_clustered:,}** users with at least 1 completed bill (out of {total_all_users:,} total users). Users with no bills are excluded from RFM analysis.")
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -86,6 +96,7 @@ with st.sidebar:
     st.markdown("**Monetary**: Total amount spent.")
 
 # ── K-Means Clustering ─────────────────────────────────────────────────────────
+st.info('🤖 **Machine Learning Segmentation** — Users are clustered using K-Means on their RFM scores. Each scatter plot shows how clusters separate across Frequency vs. Monetary and Frequency vs. Recency dimensions. Use the slider to adjust the number of segments.')
 
 # 1. Scale the data
 scaler = StandardScaler()
@@ -115,25 +126,41 @@ cluster_summary["Score"] = cluster_summary["M_Rank"] + cluster_summary["F_Rank"]
 
 cluster_summary = cluster_summary.sort_values("Score", ascending=False).reset_index(drop=True)
 
-# Assign names based on rank (index)
-def get_segment_name(idx, recency, mean_recency):
-    if idx == 0:
+# Assign names based on relative RFM characteristics
+mean_recency = cluster_summary["AvgRecency"].mean()
+mean_frequency = cluster_summary["AvgFrequency"].mean()
+mean_monetary = cluster_summary["AvgMonetary"].mean()
+
+def get_segment_name(row):
+    """Assign segment name based on actual cluster RFM characteristics."""
+    r = row["AvgRecency"]
+    f = row["AvgFrequency"]
+    m = row["AvgMonetary"]
+
+    is_recent = r < mean_recency
+    is_frequent = f > mean_frequency
+    is_high_value = m > mean_monetary
+
+    if is_recent and is_frequent and is_high_value:
         return "👑 Champions"
-    elif idx == n_clusters - 1:
-        return "⚠️ At Risk / Low Value"
-    elif recency > mean_recency:
+    elif is_recent and is_frequent:
+        return "⭐ Loyal Customers"
+    elif is_recent and is_high_value:
+        return "💎 Big Spenders"
+    elif is_recent:
+        return "🌱 Promising"
+    elif is_frequent or is_high_value:
         return "⏳ Needs Attention"
     else:
-        return "⭐ Loyal / Promising"
+        return "⚠️ At Risk / Dormant"
 
-mean_recency = cluster_summary["AvgRecency"].mean()
-cluster_summary["SegmentName"] = [get_segment_name(i, row["AvgRecency"], mean_recency) for i, row in cluster_summary.iterrows()]
+cluster_summary["SegmentName"] = cluster_summary.apply(get_segment_name, axis=1)
 
 # Now sort by Cluster ID for display
 cluster_summary = cluster_summary.sort_values("Cluster", ascending=True).reset_index(drop=True)
 
 # Assign a dynamic color to clusters based on sorted rank for consistent visualization
-color_palette = px.colors.qualitative.Plotly
+color_palette = ["#4F46E5", "#059669", "#D97706", "#DC2626", "#0891B2", "#7C3AED", "#DB2777", "#65A30D"]
 cluster_colors = {row["Cluster"]: color_palette[i % len(color_palette)] for i, row in cluster_summary.iterrows()}
 
 # ── Visualizations ─────────────────────────────────────────────────────────────
@@ -157,11 +184,12 @@ with c1:
         title="Frequency vs Monetary (Log Scale)"
     )
     fig_fm.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0"),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="Frequency (Bills)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="Monetary ($)"),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#334155"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)", title="Frequency (Bills)"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0.06)", title="Monetary ($)"),
         margin=dict(l=10, r=10, b=10, t=40),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)")
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(248,250,252,0.9)",
+                    font=dict(color="#475569"))
     )
     st.plotly_chart(fig_fm, width='stretch')
 
@@ -178,9 +206,9 @@ with c2:
         title="Recency vs Frequency"
     )
     fig_rf.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0"),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="Recency (Days)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="Frequency (Bills)"),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#334155"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)", title="Recency (Days)"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0.06)", title="Frequency (Bills)"),
         margin=dict(l=10, r=10, b=10, t=40),
         showlegend=False
     )
@@ -235,4 +263,16 @@ with st.expander("📋 View Full User Segment Data"):
     # Format
     display_df["Monetary"] = display_df["Monetary"].apply(lambda x: f"{x:,.2f}")
     
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    _ROWS = 15
+    _total = len(display_df)
+    _pages = max(1, (_total + _ROWS - 1) // _ROWS)
+    if "seg_cpg" not in st.session_state:
+        st.session_state["seg_cpg"] = 1
+    _cpg = st.session_state["seg_cpg"]
+    _s = (_cpg - 1) * _ROWS
+    _e = min(_s + _ROWS, _total)
+    st.dataframe(display_df.iloc[_s:_e], width='stretch', hide_index=True)
+    st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="seg_page",
+                    on_change=lambda: st.session_state.update({"seg_cpg": st.session_state["seg_page"]}))
+    st.caption(f"Showing {_s+1}–{_e} of {_total:,} users  ·  Page {_cpg} of {_pages}")
+
