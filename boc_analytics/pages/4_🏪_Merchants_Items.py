@@ -11,26 +11,30 @@ import pandas as pd
 import numpy as np
 from collections import Counter
 from data_loader import load_all
+from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Merchants & Items", page_icon="🏪", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;}
-.page-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#06B6D4,#3B82F6);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.2rem;}
-.page-sub{color:#64748b;font-size:0.95rem;margin-bottom:1.5rem;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
-  border-right:1px solid rgba(124,58,237,0.2);}
-.merch-kpi{background:linear-gradient(135deg,#1A1A2E,#16213E);
-  border:1px solid rgba(6,182,212,0.2);border-radius:16px;padding:1.2rem 1rem;
-  text-align:center;position:relative;overflow:hidden;}
+html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#FFFFFF;color:#1E293B;}
+.page-title{font-size:2rem;font-weight:800;color:#1E293B;margin-bottom:0.2rem;}
+.page-sub{color:#64748B;font-size:0.95rem;margin-bottom:1.5rem;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F172A,#1E293B) !important;
+  border-right:1px solid #334155;}
+.merch-kpi{background:#FFFFFF;
+  border:1px solid #E2E8F0;border-radius:16px;padding:1.2rem 1rem;
+  text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);}
 .merch-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#06B6D4,#3B82F6);}
-.merch-kpi-val{font-size:1.8rem;font-weight:900;color:#06B6D4;}
-.merch-kpi-lbl{font-size:0.7rem;text-transform:uppercase;letter-spacing:1.2px;color:#64748b;margin-top:2px;}
+  background:linear-gradient(90deg,#CBD5E1,#94A3B8);}
+.merch-kpi-val{font-size:1.8rem;font-weight:900;color:#1E293B;}
+.merch-kpi-lbl{font-size:0.7rem;text-transform:uppercase;letter-spacing:1.2px;color:#94A3B8;margin-top:2px;}
 </style>
 """, unsafe_allow_html=True)
+
+inject_shared_styles()
+inject_sidebar_brand()
 
 dfs  = load_all()
 be   = dfs.get("bill_extraction", pd.DataFrame())
@@ -51,10 +55,10 @@ with st.sidebar:
     top_n = st.slider("Top N Merchants", 5, 50, 20)
     
     all_merchants = sorted(be_clean["merchantName"].dropna().unique().tolist())
-    sel_merchants = st.multiselect("Search Merchant(s)", all_merchants, default=[], placeholder="Type to search merchants...")
+    sel_merchants = st.multiselect("Search Merchant(s)", all_merchants, default=[], placeholder="All Merchants")
     
     all_cats = sorted(be["category"].dropna().unique().tolist())
-    sel_cats = st.multiselect("Category Filter", all_cats, default=all_cats)
+    sel_cats = st.multiselect("Category Filter", all_cats, default=[], placeholder="All Categories")
     st.markdown("---")
     st.markdown(f"**Unique Merchants:** {be_clean['merchantName'].nunique():,}")
     st.markdown(f"**With Line Items:** {(be['lineItems_parsed'].apply(len) > 0).sum():,}")
@@ -93,6 +97,8 @@ for col, (icon, val, lbl) in zip([k1, k2, k3, k4], kpi_data):
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+st.info('🏪 **Merchant Intelligence** — Discover which merchants drive the most transactions and revenue. The bar chart ranks vendors by bill count, while the donut reveals category distribution across your merchant base.')
+
 # ── Row 1: Top Merchants by Bill Count  +  Category Donut ─────────────────────
 r1, r2 = st.columns([3, 2])
 
@@ -103,21 +109,21 @@ with r1:
         orientation="h",
         marker=dict(
             color=top_merch["bill_count"][::-1],
-            colorscale=[[0,"#0d1b4b"],[0.4,"#3B82F6"],[1,"#06B6D4"]],
+            colorscale=[[0,"#CFFAFE"],[0.4,"#22D3EE"],[1,"#0891B2"]],
             showscale=False,
         ),
         text=top_merch["bill_count"][::-1],
         textposition="outside",
-        textfont=dict(color="#e2e8f0", size=10),
+        textfont=dict(color="#334155", size=10),
     ))
     fig.update_layout(
         title=f"🏆 Top {top_n} Merchants by Bill Count",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0"), title_font=dict(color="#06B6D4", size=15),
+        font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
         height=max(420, top_n * 22),
         margin=dict(l=10,r=80,t=50,b=10),
-        xaxis=dict(title="Number of Bills", gridcolor="rgba(255,255,255,0.05)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.0)", tickfont=dict(size=10)),
+        xaxis=dict(title="Number of Bills", gridcolor="rgba(0,0,0,0.06)"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(size=10, color="#475569")),
     )
     st.plotly_chart(fig, width='stretch')
 
@@ -135,20 +141,20 @@ with r2:
     )
     fig2.update_traces(
         textinfo="label+percent",
-        textfont=dict(size=10),
+        textfont=dict(size=10, color="#334155"),
         pull=[0.05] + [0] * (len(cat_top) - 1),
     )
     fig2.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0", family="Inter"),
-        title_font=dict(color="#06B6D4", size=15),
+        font=dict(color="#334155", family="Inter"),
+        title_font=dict(color="#1E293B", size=15),
         height=420,
         margin=dict(l=10, r=10, t=50, b=10),
-        legend=dict(font=dict(size=9), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(font=dict(size=9, color="#475569"), bgcolor="rgba(0,0,0,0)"),
         annotations=[dict(
             text="<b>Categories</b>",
             x=0.5, y=0.5,
-            font=dict(size=13, color="#06B6D4"),
+            font=dict(size=13, color="#1E293B"),
             showarrow=False,
         )],
     )
@@ -179,19 +185,19 @@ with i1:
             orientation="h",
             marker=dict(
                 color=top_items["count"][::-1],
-                colorscale=[[0,"#0d1b4b"],[0.5,"#06B6D4"],[1,"#34d399"]],
+                colorscale=[[0,"#CFFAFE"],[0.5,"#0891B2"],[1,"#059669"]],
             ),
             text=top_items["count"][::-1],
             textposition="outside",
-            textfont=dict(size=9, color="#e2e8f0"),
+            textfont=dict(size=9, color="#334155"),
         ))
         fig.update_layout(
             title="📦 Top 25 Most Purchased Items",
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0"), title_font=dict(color="#06B6D4", size=15),
+            font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
             height=600, margin=dict(l=10,r=80,t=50,b=10),
-            xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            yaxis=dict(tickfont=dict(size=9)),
+            xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+            yaxis=dict(tickfont=dict(size=9, color="#475569")),
         )
         st.plotly_chart(fig, width='stretch')
     else:
@@ -218,14 +224,14 @@ with i2:
                 mdf, x="count", y="item", orientation="h",
                 title=f"🧾 Items at {sel_merchant}",
                 color="count",
-                color_continuous_scale=["#0d1b4b","#3B82F6","#06B6D4"],
+                color_continuous_scale=["#DBEAFE","#3B82F6","#1D4ED8"],
             )
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"), title_font=dict(color="#06B6D4", size=14),
+                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
                 height=500, margin=dict(l=10,r=10,t=50,b=10),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.0)", tickfont=dict(size=9)),
+                xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+                yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(size=9, color="#475569")),
                 coloraxis_showscale=False,
                 showlegend=False,
             )
@@ -233,14 +239,14 @@ with i2:
             # Stats
             st.markdown(f"""
             <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;">
-            <span style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.3);
-              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#06B6D4;">
+            <span style="background:rgba(8,145,178,0.08);border:1px solid rgba(8,145,178,0.25);
+              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#0891B2;">
               📋 {len(merch_bills)} bills</span>
-            <span style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);
-              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#34d399;">
+            <span style="background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);
+              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#059669;">
               💰 Avg {merch_bills['totalAmount'].mean():,.1f}</span>
-            <span style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
-              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#a78bfa;">
+            <span style="background:rgba(79,70,229,0.08);border:1px solid rgba(79,70,229,0.25);
+              border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#4F46E5;">
               🏷️ {merch_bills['category'].mode()[0] if len(merch_bills) else 'N/A'}</span>
             </div>""", unsafe_allow_html=True)
         else:
@@ -254,4 +260,16 @@ with st.expander("📋 Full Merchant Table"):
     disp["total_spend"] = disp["total_spend"].apply(lambda x: f"{x:,.2f}")
     disp["avg_spend"]   = disp["avg_spend"].apply(lambda x: f"{x:,.2f}")
     disp.columns = ["Merchant","Bill Count","Total Spend","Avg Spend","Top Category"]
-    st.dataframe(disp, width='stretch', hide_index=True, height=400)
+    _ROWS = 15
+    _total = len(disp)
+    _pages = max(1, (_total + _ROWS - 1) // _ROWS)
+    if "merch_pg" not in st.session_state:
+        st.session_state["merch_pg"] = 1
+    _cpg = st.session_state["merch_pg"]
+    _s = (_cpg - 1) * _ROWS
+    _e = min(_s + _ROWS, _total)
+    st.dataframe(disp.iloc[_s:_e], width='stretch', hide_index=True)
+    st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="merch_page",
+                    on_change=lambda: st.session_state.update({"merch_pg": st.session_state["merch_page"]}))
+    st.caption(f"Showing {_s+1}–{_e} of {_total:,} merchants  ·  Page {_cpg} of {_pages}")
+

@@ -10,19 +10,22 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from data_loader import load_all
+from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Bills & Categories", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;}
-.page-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#F59E0B,#EF4444);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.2rem;}
-.page-sub{color:#64748b;font-size:0.95rem;margin-bottom:1.5rem;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
-  border-right:1px solid rgba(124,58,237,0.2);}
+html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#FFFFFF;color:#1E293B;}
+.page-title{font-size:2rem;font-weight:800;color:#1E293B;margin-bottom:0.2rem;}
+.page-sub{color:#64748B;font-size:0.95rem;margin-bottom:1.5rem;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F172A,#1E293B) !important;
+  border-right:1px solid #334155;}
 </style>
 """, unsafe_allow_html=True)
+
+inject_shared_styles()
+inject_sidebar_brand()
 
 dfs  = load_all()
 bill = dfs.get("bill", pd.DataFrame())
@@ -39,21 +42,26 @@ if be.empty:
 with st.sidebar:
     st.markdown("### 🔽 Filters")
     all_cats = sorted(be["category"].dropna().unique().tolist())
-    sel_cats = st.multiselect("Categories", all_cats, default=all_cats)
+    sel_cats = st.multiselect("Categories", all_cats, default=[], placeholder="All Categories")
+
     all_curr = sorted(be["currency"].dropna().unique().tolist())
-    # Default = ALL currencies (not first 5) so users see full data by default
-    sel_curr = st.multiselect("Currency", all_curr, default=all_curr)
+    sel_curr = st.multiselect("Currency", all_curr, default=[], placeholder="All Currencies")
+
     min_amt = float(be["totalAmount"].dropna().min())
     max_amt = float(be["totalAmount"].dropna().max())
     amt_range = st.slider("Amount Range", min_amt, max_amt,
                           (min_amt, max_amt),
                           help="Filter bills by invoice amount (in local currency)")
 
+# If nothing selected, treat as "All"
+_cats = sel_cats if sel_cats else all_cats
+_curr = sel_curr if sel_curr else all_curr
+
 filtered = be[
-    be["category"].isin(sel_cats) &
-    be["currency"].isin(sel_curr) &
+    be["category"].isin(_cats) &
+    be["currency"].isin(_curr) &
     be["totalAmount"].between(amt_range[0], amt_range[1])
-].copy() if sel_cats and sel_curr else be.copy()
+].copy()
 
 # ── KPI Strip ─────────────────────────────────────────────────────────────────
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -65,16 +73,18 @@ kv = [
     ("🏷️", str(filtered["category"].nunique()), "Categories"),
 ]
 for col,(icon,val,lbl) in zip([k1,k2,k3,k4,k5],kv):
-    col.markdown(f"""<div style="background:linear-gradient(135deg,#1A1A2E,#16213E);
-    border:1px solid rgba(245,158,11,0.2);border-radius:14px;padding:1rem;text-align:center;
-    position:relative;overflow:hidden;">
-    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#F59E0B,#EF4444);"></div>
+    col.markdown(f"""<div style="background:#FFFFFF;
+    border:1px solid #E2E8F0;border-radius:14px;padding:1rem;text-align:center;
+    position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#CBD5E1,#94A3B8);"></div>
     <div style="font-size:1.4rem">{icon}</div>
-    <div style="font-size:1.6rem;font-weight:800;color:#F59E0B">{val}</div>
-    <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:2px">{lbl}</div>
+    <div style="font-size:1.6rem;font-weight:800;color:#1E293B">{val}</div>
+    <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#94A3B8;margin-top:2px">{lbl}</div>
     </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
+
+st.info('📊 **Category Breakdown** — The bar chart shows bill volumes by category over time, while the horizontal chart reveals the overall distribution. Use the date filters to focus on specific periods and spot seasonal spending patterns.')
 
 # ── Row 1: Bills by Category (date-picker) + Category Total Count ───────────────
 r1, r2 = st.columns(2)
@@ -133,9 +143,9 @@ with r1:
                 .reset_index(name="bill_count")
                 .sort_values("bill_count", ascending=False)
             )
-            COLORS = ["#7C3AED","#F59E0B","#10B981","#EF4444","#06B6D4",
-                      "#EC4899","#84CC16","#F97316","#3B82F6","#34d399",
-                      "#a78bfa","#60a5fa","#fbbf24"]
+            COLORS = ["#4F46E5","#D97706","#059669","#DC2626","#0891B2",
+                      "#DB2777","#65A30D","#EA580C","#2563EB","#10B981",
+                      "#818CF8","#3B82F6","#F59E0B"]
             bar_colors = [COLORS[i % len(COLORS)] for i in range(len(cat_count))]
 
             fig = go.Figure(go.Bar(
@@ -144,28 +154,28 @@ with r1:
                 marker=dict(color=bar_colors, line=dict(width=0)),
                 text=cat_count["bill_count"].apply(lambda v: f"{v:,}"),
                 textposition="outside",
-                textfont=dict(size=11, color="#e2e8f0"),
+                textfont=dict(size=11, color="#334155"),
             ))
             total_in_range = int(cat_count["bill_count"].sum())
             fig.update_layout(
                 title=f"🏷️ Bills by Category  ·  {total_in_range:,} bills in range",
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0", family="Inter"),
-                title_font=dict(color="#F59E0B", size=15),
+                font=dict(color="#334155", family="Inter"),
+                title_font=dict(color="#1E293B", size=15),
                 height=400,
                 margin=dict(l=10, r=10, t=55, b=10),
                 xaxis=dict(
                     title="Category",
                     tickangle=-30,
-                    gridcolor="rgba(255,255,255,0.05)",
-                    tickfont=dict(size=11),
+                    gridcolor="rgba(0,0,0,0.06)",
+                    tickfont=dict(size=11, color="#475569"),
                 ),
                 yaxis=dict(
                     title="Number of Bills",
-                    gridcolor="rgba(255,255,255,0.05)",
-                    title_font=dict(color="#F59E0B"),
-                    tickfont=dict(color="#F59E0B"),
+                    gridcolor="rgba(0,0,0,0.06)",
+                    title_font=dict(color="#475569"),
+                    tickfont=dict(color="#64748B"),
                 ),
                 showlegend=False,
             )
@@ -183,9 +193,9 @@ with r2:
         .sort_values("bill_count", ascending=True)   # ascending so longest bar is on top
     )
 
-    COLORS = ["#7C3AED","#F59E0B","#10B981","#EF4444","#06B6D4",
-              "#EC4899","#84CC16","#F97316","#3B82F6","#34d399",
-              "#a78bfa","#60a5fa","#fbbf24"]
+    COLORS = ["#4F46E5","#D97706","#059669","#DC2626","#0891B2",
+              "#DB2777","#65A30D","#EA580C","#2563EB","#10B981",
+              "#818CF8","#3B82F6","#F59E0B"]
     hbar_colors = [COLORS[i % len(COLORS)] for i in range(len(cat_total))]
 
     fig2 = go.Figure(go.Bar(
@@ -195,28 +205,29 @@ with r2:
         marker=dict(color=hbar_colors, line=dict(width=0)),
         text=cat_total["bill_count"].apply(lambda v: f"{v:,} bills"),
         textposition="outside",
-        textfont=dict(size=11, color="#e2e8f0"),
+        textfont=dict(size=11, color="#334155"),
     ))
     fig2.update_layout(
         title="📊 Total Bill Count by Category",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0", family="Inter"),
-        title_font=dict(color="#F59E0B", size=15),
+        font=dict(color="#334155", family="Inter"),
+        title_font=dict(color="#1E293B", size=15),
         height=400,
         margin=dict(l=10, r=120, t=55, b=10),
         xaxis=dict(
             title="Number of Bills",
-            gridcolor="rgba(255,255,255,0.05)",
-            title_font=dict(color="#F59E0B"),
-            tickfont=dict(color="#F59E0B"),
+            gridcolor="rgba(0,0,0,0.06)",
+            title_font=dict(color="#475569"),
+            tickfont=dict(color="#64748B"),
         ),
-        yaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0)", tickfont=dict(color="#475569")),
         showlegend=False,
     )
     st.plotly_chart(fig2, width='stretch')
 
 # ── Row 2: Spend Distribution by Category  +  Avg Tax Rate — side by side ─────
+st.info('📦 **Spending Insights** — The box plot reveals the spread of bill amounts within each category, helping identify high-variance categories. The tax rate chart highlights which categories carry the highest average tax burden.')
 r3, r4 = st.columns(2)
 
 with r3:
@@ -225,17 +236,17 @@ with r3:
         box_df, x="category", y="totalAmount",
         title="📦 Spend Distribution by Category",
         color="category",
-        color_discrete_sequence=["#7C3AED","#06B6D4","#10B981","#F59E0B","#EF4444",
-                                  "#3B82F6","#EC4899","#84CC16","#F97316","#8B5CF6",
-                                  "#34d399","#60a5fa"],
+        color_discrete_sequence=["#4F46E5","#0891B2","#059669","#D97706","#DC2626",
+                                  "#2563EB","#DB2777","#65A30D","#EA580C","#7C3AED",
+                                  "#10B981","#3B82F6"],
         points=False,
     )
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0"), title_font=dict(color="#F59E0B", size=15),
+        font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
         height=400, margin=dict(l=10,r=10,t=50,b=60),
-        xaxis=dict(tickangle=-30, gridcolor="rgba(255,255,255,0.05)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+        xaxis=dict(tickangle=-30, gridcolor="rgba(0,0,0,0.06)"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
         showlegend=False,
     )
     st.plotly_chart(fig, width='stretch')
@@ -256,27 +267,27 @@ with r4:
             orientation="h",
             marker=dict(
                 color=tax_cat["avg_tax_rate"],
-                colorscale=[[0,"#0d1b4b"],[0.4,"#7C3AED"],[0.7,"#F59E0B"],[1,"#EF4444"]],
+                colorscale=[[0,"#FEF3C7"],[0.4,"#F59E0B"],[0.7,"#EA580C"],[1,"#DC2626"]],
                 showscale=True,
                 colorbar=dict(
                     title="Tax %",
-                    tickfont=dict(color="#94a3b8", size=9),
-                    title_font=dict(color="#94a3b8", size=10),
+                    tickfont=dict(color="#64748B", size=9),
+                    title_font=dict(color="#64748B", size=10),
                     thickness=12, len=0.8,
                 ),
             ),
             text=[f"{v:.1f}%  ({int(c):,} bills)" for v, c in
                   zip(tax_cat["avg_tax_rate"], tax_cat["bill_count"])],
             textposition="outside",
-            textfont=dict(size=10, color="#e2e8f0"),
+            textfont=dict(size=10, color="#334155"),
         ))
         fig.update_layout(
             title="📐 Avg Tax Rate by Category (%)",
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0"), title_font=dict(color="#F59E0B", size=15),
+            font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
             height=400, margin=dict(l=10,r=140,t=50,b=10),
-            xaxis=dict(title="Average Tax Rate (%)", gridcolor="rgba(255,255,255,0.05)"),
-            yaxis=dict(gridcolor="rgba(255,255,255,0.0)"),
+            xaxis=dict(title="Average Tax Rate (%)", gridcolor="rgba(0,0,0,0.06)"),
+            yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(color="#475569")),
             showlegend=False,
         )
         st.plotly_chart(fig, width='stretch')
@@ -288,5 +299,18 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ── Raw data table ─────────────────────────────────────────────────────────────
 with st.expander("📋 View Raw Bill Extractions"):
     cols_show = [c for c in ["merchantName","category","totalAmount","taxAmount","currency","invoiceDate"] if c in filtered.columns]
-    st.dataframe(filtered[cols_show].sort_values("totalAmount", ascending=False).head(200),
-                 width='stretch', hide_index=True)
+    _raw = filtered[cols_show].sort_values("totalAmount", ascending=False).reset_index(drop=True)
+    _ROWS = 15
+    _total = len(_raw)
+    _pages = max(1, (_total + _ROWS - 1) // _ROWS)
+    if "bills_pg" not in st.session_state:
+        st.session_state["bills_pg"] = 1
+    _cpg = st.session_state["bills_pg"]
+    _s = (_cpg - 1) * _ROWS
+    _e = min(_s + _ROWS, _total)
+    st.dataframe(_raw.iloc[_s:_e], width='stretch', hide_index=True)
+    st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="bills_raw_page",
+                    on_change=lambda: st.session_state.update({"bills_pg": st.session_state["bills_raw_page"]}))
+    st.caption(f"Showing {_s+1}–{_e} of {_total:,} bills  ·  Page {_cpg} of {_pages}")
+
+

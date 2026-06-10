@@ -8,36 +8,40 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 from data_loader import load_all
+from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Spend Optimization", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;}
-.page-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#10B981,#3B82F6);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.2rem;}
-.page-sub{color:#64748b;font-size:0.95rem;margin-bottom:1.5rem;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F0F1A,#1A1A2E);
-  border-right:1px solid rgba(16,185,129,0.2);}
+html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#FFFFFF;color:#1E293B;}
+.page-title{font-size:2rem;font-weight:800;color:#1E293B;margin-bottom:0.2rem;}
+.page-sub{color:#64748B;font-size:0.95rem;margin-bottom:1.5rem;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F172A,#1E293B) !important;
+  border-right:1px solid #334155;}
 
 /* KPI Cards */
 .kpi-card {
-    background: linear-gradient(135deg,#1A1A2E,#16213E);
-    border: 1px solid rgba(16,185,129,0.2);
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
     border-radius: 12px;
     padding: 1.5rem;
     text-align: center;
     position: relative;
     overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 .kpi-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg,#10B981,#3B82F6);
+    background: linear-gradient(90deg,#CBD5E1,#94A3B8);
 }
-.kpi-val { font-size: 1.5rem; font-weight: 800; color: #10B981; }
-.kpi-lbl { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-top: 8px; }
+.kpi-val { font-size: 1.5rem; font-weight: 800; color: #1E293B; }
+.kpi-lbl { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8; margin-top: 8px; }
 </style>
 """, unsafe_allow_html=True)
+
+inject_shared_styles()
+inject_sidebar_brand()
 
 dfs = load_all()
 be = dfs.get("bill_extraction", pd.DataFrame())
@@ -118,8 +122,8 @@ with c1:
         labels={"totalAmount": f"Amount ({selected_curr})", "category": "Category"}
     )
     fig_cat.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0"),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.05)"), yaxis=dict(title=""), coloraxis_showscale=False
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#334155"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)"), yaxis=dict(title="", tickfont=dict(color="#475569")), coloraxis_showscale=False
     )
     st.plotly_chart(fig_cat, width='stretch')
 
@@ -146,12 +150,12 @@ with m1:
         orientation="h",
         title="Top 10 Merchants by Spend",
         color="totalAmount",
-        color_continuous_scale="Purples",
+        color_continuous_scale=[[0, "#93C5FD"], [0.4, "#3B82F6"], [1, "#1E3A8A"]],
         labels={"totalAmount": f"Amount ({selected_curr})", "merchantName": "Merchant"}
     )
     fig_merch.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0"),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.05)"), yaxis=dict(title=""), coloraxis_showscale=False
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#334155"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)"), yaxis=dict(title="", tickfont=dict(color="#475569")), coloraxis_showscale=False
     )
     st.plotly_chart(fig_merch, width='stretch')
 
@@ -182,8 +186,7 @@ if not top_m.empty:
 
 for ins in insights:
     st.markdown(f"""
-    <div style="background:rgba(16,185,129,0.1); border-left:4px solid #10B981; padding:1.2rem; margin-bottom:1rem; border-radius:0 8px 8px 0; color:#e2e8f0; font-size:1rem;">
+    <div style="background:rgba(5,150,105,0.06); border-left:4px solid #059669; padding:1.2rem; margin-bottom:1rem; border-radius:0 8px 8px 0; color:#334155; font-size:1rem;">
         {ins}
     </div>
     """, unsafe_allow_html=True)
-

@@ -10,32 +10,32 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for the glowing gradient landing page
+# Custom CSS for the clean white landing page
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif;
-    background-color: #0B0E14;
-    color: #F8FAFC;
+    background-color: #FFFFFF;
+    color: #1E293B;
 }
 
 /* Hide sidebar and top header */
 [data-testid="stSidebar"] { display: none; }
 [data-testid="collapsedControl"] { display: none; }
-header[data-testid="stHeader"] { display: none; }
+header[data-testid="stHeader"] { background: #FFFFFF; }
 
 /* Vertically center the content cleanly without huge gaps */
 .block-container {
-    padding-top: 25vh;
+    padding-top: 22vh;
 }
 
 /* Typography styles */
 .hero-icon {
     font-size: 5rem;
     margin-bottom: 1rem;
-    filter: drop-shadow(0 0 20px rgba(251, 146, 60, 0.5));
+    filter: drop-shadow(0 0 20px rgba(79, 70, 229, 0.3));
 }
 
 .hero-title {
@@ -43,14 +43,12 @@ header[data-testid="stHeader"] { display: none; }
     font-weight: 900;
     line-height: 1.1;
     margin-bottom: 1rem;
-    background: linear-gradient(135deg, #06B6D4, #3B82F6, #8B5CF6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #1E293B;
 }
 
 .hero-subtitle {
     font-size: 1.1rem;
-    color: #94a3b8;
+    color: #64748B;
     max-width: 650px;
     margin: 0 auto 3rem auto;
     line-height: 1.6;
@@ -62,19 +60,19 @@ div.stButton {
     justify-content: center;
 }
 div.stButton > button {
-    background: linear-gradient(135deg, #6366f1, #a855f7) !important;
+    background: #1E293B !important;
     color: white !important;
     border: none !important;
     padding: 1.2rem 4rem !important;
     font-size: 1.2rem !important;
     font-weight: 700 !important;
     border-radius: 50px !important;
-    box-shadow: 0 4px 15px -3px rgba(168, 85, 247, 0.4) !important;
+    box-shadow: 0 4px 20px -3px rgba(30, 41, 59, 0.3) !important;
     transition: all 0.3s ease !important;
 }
 div.stButton > button:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 20px -4px rgba(168, 85, 247, 0.5) !important;
+    box-shadow: 0 8px 28px -4px rgba(30, 41, 59, 0.4) !important;
 }
 </style>
 """, unsafe_allow_html=True)

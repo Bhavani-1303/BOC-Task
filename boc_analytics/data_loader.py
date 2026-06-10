@@ -14,10 +14,9 @@ from pathlib import Path
 
 # ── Data file path ────────────────────────────────────────────────────────────
 # Supports both local Windows development and Streamlit Cloud (Linux) deployment.
-# On Streamlit Cloud the file must be committed to the repo at boc_analytics/bocdata 1
 _HERE = Path(__file__).parent                  # directory of data_loader.py
-_RELATIVE = _HERE / "bocdata 1"               # repo-relative path (Streamlit Cloud)
-_ABSOLUTE = Path(r"C:\BOC\bocdata 1")          # local Windows development path
+_RELATIVE = _HERE / "billsonchain_backup 1.backup"   # repo-relative path (Streamlit Cloud)
+_ABSOLUTE = Path(r"C:\BOC\billsonchain_backup 1.backup")  # local Windows development path
 
 if _RELATIVE.exists():
     DUMP_PATH = _RELATIVE
@@ -165,6 +164,21 @@ def load_all() -> dict[str, pd.DataFrame]:
         fc["score"]     = pd.to_numeric(fc["score"],     errors="coerce")
         fc["createdAt"] = pd.to_datetime(fc["createdAt"], errors="coerce", utc=True).dt.tz_convert(None)
         dfs["fraud_check"] = fc
+
+    # ---- nft ----
+    if "nft" in dfs:
+        nf = dfs["nft"]
+        nf["createdAt"] = pd.to_datetime(nf["createdAt"], errors="coerce", utc=True).dt.tz_convert(None)
+        dfs["nft"] = nf
+
+    # ---- Filter bill_extraction to only NFT-completed bills ----
+    # Only keep extractions whose billId matches a bill with status='completed'.
+    # This removes fraud-rejected, duplicate, failed, and pending bills from all analytics.
+    if "bill_extraction" in dfs and "bill" in dfs:
+        completed_bill_ids = set(dfs["bill"][dfs["bill"]["status"] == "completed"]["id"])
+        dfs["bill_extraction"] = dfs["bill_extraction"][
+            dfs["bill_extraction"]["billId"].isin(completed_bill_ids)
+        ].copy()
 
     return dfs
 
