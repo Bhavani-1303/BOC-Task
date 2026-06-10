@@ -75,31 +75,7 @@ total_spend = df_curr["totalAmount"].sum()
 tx_count = len(df_curr)
 avg_spend = total_spend / tx_count if tx_count > 0 else 0
 
-st.markdown("### 📊 Executive Summary")
-st.info("This section provides a high-level view of your total expenditure. It shows exactly how much money has left your account and the average size of your transactions.")
 
-k1, k2, k3 = st.columns(3)
-with k1:
-    st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-val">${total_spend:,.0f} {selected_curr}</div>
-        <div class="kpi-lbl">Total Spend</div>
-    </div>
-    """, unsafe_allow_html=True)
-with k2:
-    st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-val">{tx_count:,}</div>
-        <div class="kpi-lbl">Total Transactions</div>
-    </div>
-    """, unsafe_allow_html=True)
-with k3:
-    st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-val">${avg_spend:,.0f} {selected_curr}</div>
-        <div class="kpi-lbl">Average Transaction Value</div>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ── Category Analysis ────────────────────────────────────────────────────────
 st.markdown("### 🏷️ Category-Wise Spend Analysis")
@@ -165,28 +141,4 @@ with m2:
     disp_m["Spend"] = disp_m["totalAmount"].apply(lambda x: f"${x:,.0f}")
     st.dataframe(disp_m[["merchantName", "Spend"]].rename(columns={"merchantName": "Merchant Name"}), hide_index=True, width='stretch')
 
-# ── Actionable Advice ────────────────────────────────────────────────────────
-st.markdown("### 💡 How to Optimize Your Spend")
 
-insights = []
-cat_desc = cat_spend.sort_values("totalAmount", ascending=False)
-if not cat_desc.empty:
-    top_c = cat_desc.iloc[0]
-    insights.append(f"🔴 **Reduce Top Category:** Your highest spend is in **{top_c['category']}** (${top_c['totalAmount']:,.0f}, which is {top_c['Percentage']:.1f}% of your budget). Try setting a strict monthly limit for this specific category.")
-
-if "food" in [c.lower() for c in cat_desc["category"]]:
-    food_row = cat_desc[cat_desc["category"].str.lower() == "food"].iloc[0]
-    if food_row["Percentage"] > 15:
-        insights.append(f"🍔 **Cut Dining Costs:** Food takes up **{food_row['Percentage']:.1f}%** of your spend. Cooking at home just two more days a week can drastically reduce this number.")
-
-top_m = merch_spend.sort_values("totalAmount", ascending=False)
-if not top_m.empty:
-    top_merch = top_m.iloc[0]
-    insights.append(f"🏬 **Evaluate Top Vendor:** You spent **${top_merch['totalAmount']:,.0f}** at **{top_merch['merchantName']}**. Are there cheaper alternatives for the products you buy here?")
-
-for ins in insights:
-    st.markdown(f"""
-    <div style="background:rgba(5,150,105,0.06); border-left:4px solid #059669; padding:1.2rem; margin-bottom:1rem; border-radius:0 8px 8px 0; color:#334155; font-size:1rem;">
-        {ins}
-    </div>
-    """, unsafe_allow_html=True)

@@ -8,7 +8,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from data_loader import load_all
+from data_loader import load_all, CURRENCY_TO_USD
 from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Overview", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
@@ -58,14 +58,19 @@ rc   = dfs.get("reward_credit",   pd.DataFrame())
 # ── Derived KPI values (all from real data) ────────────────────────────────────
 total_users     = len(user)
 total_bills     = len(bill)
-total_successful= len(be)  # bill_extraction is now pre-filtered to completed bills only
+bills_completed = int((bill["status"] == "completed").sum()) if "status" in bill.columns else 0
 total_nfts      = len(nft)
 total_merchants = int(be["merchantName"].nunique()) if "merchantName" in be.columns else 0
 total_currencies= int(be["currency"].nunique())     if "currency"     in be.columns else 0
 
-# Spend: Convert from INR to USD by dividing by 83
-total_spend_num = (float(be["totalAmount"].sum()) / 83.0) if "totalAmount" in be.columns else 0
-avg_spend_num   = (float(be["totalAmount"].mean()) / 83.0) if "totalAmount" in be.columns else 0
+# Spend: Convert each bill to USD using its currency
+if "totalAmount" in be.columns and "currency" in be.columns:
+    be_valid = be.dropna(subset=["totalAmount","currency"])
+    total_spend_num = float(be_valid.apply(lambda r: r["totalAmount"] * CURRENCY_TO_USD.get(r["currency"], 0), axis=1).sum())
+    avg_spend_num   = total_spend_num / len(be_valid) if len(be_valid) > 0 else 0
+else:
+    total_spend_num = 0
+    avg_spend_num   = 0
 top_category    = be["category"].value_counts().idxmax() if "category" in be.columns and len(be) else "N/A"
 
 # Fraud stats
@@ -80,8 +85,8 @@ st.markdown('<div class="page-sub">Key performance indicators and platform-wide 
 # ── KPI Cards (7 metrics from real data) ──────────────────────────────────────
 kpis = [
     ("👥", f"{total_users:,}",       "Users"),
-    ("🧾", f"{total_bills:,}",       "Bills Uploaded"),
-    ("✅", f"{total_successful:,}",  "Successful Bills"),
+    ("🧞", f"{total_bills:,}",       "Bills Uploaded"),
+    ("✅", f"{bills_completed:,}",   "Completed Bills"),
     ("🖼️", f"{total_nfts:,}",        "NFTs Minted"),
     ("🏪", f"{total_merchants:,}",   "Merchants"),
     ("🌍", f"{total_currencies:,}",  "Currencies"),
@@ -284,18 +289,20 @@ with r2c1:
             return "#6366F1"
         s_counts["color"] = s_counts["status"].apply(status_color)
         s_counts = s_counts.sort_values("count", ascending=True)
+        s_counts["label"] = s_counts["count"].apply(lambda x: f"{x:,}")
         fig = go.Figure(go.Bar(
             x=s_counts["count"], y=s_counts["status"], orientation="h",
             marker_color=s_counts["color"],
-            text=s_counts["count"],
-            textposition="outside",
-            textfont=dict(color="#334155", size=11),
+            text=s_counts["label"],
+            textposition="inside",
+            insidetextanchor="end",
+            textfont=dict(color="#FFFFFF", size=12, family="Inter"),
         ))
         fig.update_layout(
             title="⚙️ Bill Status Breakdown",
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
-            height=400, margin=dict(l=10,r=80,t=50,b=10),
+            height=400, margin=dict(l=10,r=30,t=50,b=10),
             xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
             yaxis=dict(gridcolor="rgba(0,0,0,0.06)", tickfont=dict(color="#475569")),
         )
@@ -314,8 +321,9 @@ with r2c2:
             color_discrete_map=colors_map,
         )
         fig.update_traces(
-            textinfo="label+percent+value",
+            textinfo="percent",
             textfont=dict(size=12, color="#334155"),
+            textposition="inside",
             pull=[0.04] * len(d_counts),
         )
         fig.update_layout(
@@ -345,60 +353,14 @@ with r2c2:
 
 
 # ── Row 3: Fraud Score Distribution  +  Fraud Checks by Vendor ────────────────
-st.markdown("<br>", unsafe_allow_html=True)
-st.info('📊 **Fraud Analysis Deep Dive** — The histogram shows the distribution of fraud confidence scores (0 = definitely legitimate, 1 = definitely fraudulent). The vendor chart reveals which fraud-checking providers are most utilized. Flags highlight the most common reasons bills get flagged for review.')
+
+# ── Fraud Flags ───────────────────────────────────────────────────────────────
 if fraud_total > 0:
 
     import json
     from collections import Counter
 
-    fa1, fa2 = st.columns(2)
-
-    with fa1:
-        if "score" in fc.columns and fc["score"].notna().sum() > 0:
-            fig = px.histogram(
-                fc.dropna(subset=["score"]), x="score", nbins=30,
-                title="📊 Fraud Score Distribution",
-                color_discrete_sequence=["#6366F1"],
-            )
-            fig.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
-                height=320, margin=dict(l=10, r=10, t=55, b=10),
-                xaxis=dict(title="Fraud Score (0–1)", gridcolor="rgba(0,0,0,0.06)"),
-                yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
-                showlegend=False,
-            )
-            st.plotly_chart(fig, width='stretch')
-
-    with fa2:
-        if "vendor" in fc.columns:
-            v_counts = fc["vendor"].value_counts().head(8).reset_index()
-            v_counts.columns = ["vendor", "count"]
-            fig = go.Figure(go.Bar(
-                x=v_counts["count"][::-1],
-                y=v_counts["vendor"][::-1],
-                orientation="h",
-                marker=dict(
-                    color=v_counts["count"][::-1],
-                    colorscale=[[0, "#C7D2FE"], [0.5, "#818CF8"], [1, "#4F46E5"]],
-                    showscale=False,
-                ),
-                text=v_counts["count"][::-1],
-                textposition="outside",
-                textfont=dict(color="#334155", size=10),
-            ))
-            fig.update_layout(
-                title="🏢 Fraud Checks by Vendor",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
-                height=320, margin=dict(l=10, r=80, t=55, b=10),
-                xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
-                yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(size=10, color="#475569")),
-            )
-            st.plotly_chart(fig, width='stretch')
-
-    # Fraud flags full-width below
+    # Fraud flags full-width
     if "flags" in fc.columns and fc["flags"].notna().sum() > 0:
         all_flags = []
         for f_val in fc["flags"].dropna():

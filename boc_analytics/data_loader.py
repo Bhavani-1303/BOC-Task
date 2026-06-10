@@ -134,6 +134,12 @@ def load_all() -> dict[str, pd.DataFrame]:
             except Exception:
                 return []
         be["lineItems_parsed"] = be["lineItems"].apply(safe_json)
+
+        # Filter: keep only bill_extraction rows for completed (NFT-minted) bills
+        if "bill" in dfs:
+            completed_bill_ids = set(dfs["bill"][dfs["bill"]["status"] == "completed"]["id"])
+            be = be[be["billId"].isin(completed_bill_ids)].copy()
+
         dfs["bill_extraction"] = be
 
     # ---- user ----
@@ -170,15 +176,6 @@ def load_all() -> dict[str, pd.DataFrame]:
         nf = dfs["nft"]
         nf["createdAt"] = pd.to_datetime(nf["createdAt"], errors="coerce", utc=True).dt.tz_convert(None)
         dfs["nft"] = nf
-
-    # ---- Filter bill_extraction to only NFT-completed bills ----
-    # Only keep extractions whose billId matches a bill with status='completed'.
-    # This removes fraud-rejected, duplicate, failed, and pending bills from all analytics.
-    if "bill_extraction" in dfs and "bill" in dfs:
-        completed_bill_ids = set(dfs["bill"][dfs["bill"]["status"] == "completed"]["id"])
-        dfs["bill_extraction"] = dfs["bill_extraction"][
-            dfs["bill_extraction"]["billId"].isin(completed_bill_ids)
-        ].copy()
 
     return dfs
 
@@ -227,3 +224,23 @@ CURRENCY_ISO3 = {
     "AUD": "AUS", "PLN": "POL", "NZD": "NZL", "MAD": "MAR",
     "LKR": "LKA",
 }
+
+# ── Currency to USD conversion rates ──────────────────────────────────────────
+CURRENCY_TO_USD = {
+    "IDR": 1/15500, "INR": 1/83, "NGN": 1/1550, "VND": 1/24500, "PHP": 1/56,
+    "USD": 1.0, "DZD": 1/135, "PKR": 1/280, "TRY": 1/32, "UAH": 1/41,
+    "IRR": 1/42000, "BDT": 1/110, "GBP": 1.27, "MYR": 1/4.7, "EUR": 1.08,
+    "HKD": 1/7.8, "MMK": 1/2100, "BRL": 1/5.0, "AED": 1/3.67, "CHF": 1.12,
+    "ZAR": 1/18.5, "ETB": 1/57, "TWD": 1/32, "KES": 1/153, "EGP": 1/49,
+    "THB": 1/36, "JPY": 1/155, "UZS": 1/12600, "XOF": 1/610, "KHR": 1/4100,
+    "NPR": 1/133, "CAD": 1/1.36, "RUB": 1/92, "MXN": 1/17.2, "SGD": 1/1.35,
+    "PEN": 1/3.75, "AUD": 1/1.53, "PLN": 1/4.0, "NZD": 1/1.63, "MAD": 1/10,
+    "LKR": 1/310, "KRW": 1/1350, "CNY": 1/7.25, "SAR": 1/3.75, "SEK": 1/10.5,
+    "CRC": 1/530, "ISK": 1/138, "KWD": 3.26, "LYD": 1/4.85, "SYP": 1/13000,
+    "TND": 1/3.12, "ZMW": 1/26, "UGX": 1/3750, "XAF": 1/610, "AZN": 1/1.7,
+}
+
+def convert_to_usd(amount, currency):
+    """Convert an amount in a given currency to USD."""
+    rate = CURRENCY_TO_USD.get(currency, 0)
+    return amount * rate

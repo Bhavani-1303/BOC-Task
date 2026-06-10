@@ -68,12 +68,10 @@ top_country     = be_geo["country"].value_counts().idxmax()
 top_curr        = be_geo["currency"].value_counts().idxmax()
 
 # ── KPI ─────────────────────────────────────────────────────────────────────────
-k1,k2,k3,k4 = st.columns(4)
-for col,(icon,val,lbl) in zip([k1,k2,k3,k4],[
-    ("🌍", str(n_countries), "Countries / Regions"),
+k1,k2 = st.columns(2)
+for col,(icon,val,lbl) in zip([k1,k2],[
     ("💱", str(n_currencies), "Currencies"),
     ("🧾", f"{total_bills:,}", "Total Bills"),
-    ("💰", f"{total_spend_num:,.0f}", "Global Spend (mixed currencies)"),
 ]):
     col.markdown(f"""<div style="background:#FFFFFF;
     border:1px solid #E2E8F0;border-radius:14px;padding:1rem;text-align:center;
@@ -89,12 +87,10 @@ unmapped_count = int((be_geo["country"] == "Unmapped").sum())
 st.markdown(f"""
 <div style="background:rgba(5,150,105,0.06);border-left:3px solid #059669;
 border-radius:0 8px 8px 0;padding:0.7rem 1rem;margin:0.5rem 0 1rem 0;font-size:0.82rem;color:#475569">
-<b style="color:#475569">ℹ️ About the {n_countries} countries:</b>
-46 real countries/regions (one per currency) + 1 <b>"Unmapped"</b> group
-({unmapped_count:,} bills with no currency — these are failed extractions
-where the AI couldn't read the invoice currency, shown as <code>[Company Name]</code> merchants).
-<b>Currency totals cannot be summed in a single dollar figure</b> since they represent different local currencies
-(73.6% of bills are IDR — Indonesian Rupiah).
+<b style="color:#475569">ℹ️ About the data:</b>
+Only <b>completed (NFT-minted) bills</b> are shown. {n_countries} countries/regions detected from {n_currencies} currencies.
+{f'{unmapped_count:,} bills have no currency information and are grouped as <b>"Unmapped"</b>.' if unmapped_count > 0 else ''}
+<b>Currency totals cannot be summed in a single dollar figure</b> since they represent different local currencies.
 </div>
 """, unsafe_allow_html=True)
 
@@ -239,12 +235,12 @@ with ch1:
         hole=0.5,
         color_discrete_sequence=px.colors.qualitative.Vivid,
     )
-    fig.update_traces(textinfo="label+percent", textfont=dict(size=10, color="#334155"))
+    fig.update_traces(textinfo="percent", textposition="inside", textfont=dict(size=11, color="#FFFFFF"))
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
         height=450, margin=dict(l=10, r=10, t=80, b=20),
-        legend=dict(font=dict(size=9, color="#475569"), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(font=dict(size=10, color="#475569"), bgcolor="rgba(0,0,0,0)"),
     )
     st.plotly_chart(fig, width='stretch')
 
@@ -271,25 +267,55 @@ with ch2:
     else:
         st.info("No data available for the selected vendor in these countries.")
 
-# ── Regional Table ─────────────────────────────────────────────────────────────
+# ── Regional Table (ALL currencies) ────────────────────────────────────────────
 st.markdown("### 📋 Regional Summary Table")
-disp = map_source.copy()
-disp["total_spend"] = disp["total_spend"].apply(lambda x: f"${x:,.2f}")
-disp["avg_spend"]   = disp["avg_spend"].apply(lambda x: f"${x:,.2f}")
-disp.columns = ["Currency","Country","ISO3","Bill Count","Total Spend","Avg Spend","Unique Merchants"]
-disp = disp.drop(columns=["ISO3"])
+
+# Build table from ALL currencies (not grouped by iso3 which drops NaN)
+CURRENCY_TO_USD = {
+    "IDR": 1/15500, "INR": 1/83, "NGN": 1/1550, "VND": 1/24500, "PHP": 1/56,
+    "USD": 1.0, "DZD": 1/135, "PKR": 1/280, "TRY": 1/32, "UAH": 1/41,
+    "IRR": 1/42000, "BDT": 1/110, "GBP": 1.27, "MYR": 1/4.7, "EUR": 1.08,
+    "HKD": 1/7.8, "MMK": 1/2100, "BRL": 1/5.0, "AED": 1/3.67, "CHF": 1.12,
+    "ZAR": 1/18.5, "ETB": 1/57, "TWD": 1/32, "KES": 1/153, "EGP": 1/49,
+    "THB": 1/36, "JPY": 1/155, "UZS": 1/12600, "XOF": 1/610, "KHR": 1/4100,
+    "NPR": 1/133, "CAD": 1/1.36, "RUB": 1/92, "MXN": 1/17.2, "SGD": 1/1.35,
+    "PEN": 1/3.75, "AUD": 1/1.53, "PLN": 1/4.0, "NZD": 1/1.63, "MAD": 1/10,
+    "LKR": 1/310, "KRW": 1/1350, "CNY": 1/7.25, "SAR": 1/3.75, "SEK": 1/10.5,
+    "CRC": 1/530, "ISK": 1/138, "KWD": 3.26, "LYD": 1/4.85, "SYP": 1/13000,
+    "TND": 1/3.12, "ZMW": 1/26, "UGX": 1/3750, "XAF": 1/610, "AZN": 1/1.7,
+}
+
+all_curr_agg = be_geo.groupby(["currency","country"]).agg(
+    bill_count=("totalAmount","count"),
+    total_spend=("totalAmount","sum"),
+    avg_spend=("totalAmount","mean"),
+    unique_merchants=("merchantName","nunique"),
+).reset_index().sort_values("bill_count", ascending=False)
+
+# Add USD column
+all_curr_agg["total_spend_usd"] = all_curr_agg.apply(
+    lambda r: r["total_spend"] * CURRENCY_TO_USD.get(r["currency"], 0), axis=1
+)
+
+disp = all_curr_agg.copy()
+disp["total_spend"] = disp.apply(lambda r: f"{r['total_spend']:,.0f} {r['currency']}", axis=1)
+disp["total_spend_usd"] = disp["total_spend_usd"].apply(lambda x: f"${x:,.2f}")
+disp["avg_spend"]   = disp["avg_spend"].apply(lambda x: f"{x:,.2f}")
+disp = disp[["currency","country","bill_count","total_spend","total_spend_usd","avg_spend","unique_merchants"]]
+disp.columns = ["Currency","Country","Bill Count","Total Spend (Local)","Total Spend (USD)","Avg Spend","Unique Merchants"]
+
 _ROWS = 15
 _total = len(disp)
 _pages = max(1, (_total + _ROWS - 1) // _ROWS)
 if "reg_pg" not in st.session_state:
     st.session_state["reg_pg"] = 1
-_cpg = st.session_state["reg_pg"]
+_cpg = min(st.session_state["reg_pg"], _pages)
 _s = (_cpg - 1) * _ROWS
 _e = min(_s + _ROWS, _total)
 st.dataframe(disp.iloc[_s:_e], width='stretch', hide_index=True)
 st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="regional_page",
                 on_change=lambda: st.session_state.update({"reg_pg": st.session_state["regional_page"]}))
-st.caption(f"Showing {_s+1}–{_e} of {_total:,} regions  ·  Page {_cpg} of {_pages}")
+st.caption(f"Showing {_s+1}–{_e} of {_total:,} currencies  ·  Page {_cpg} of {_pages}")
 
 with st.sidebar:
     st.markdown("### 🌍 Regional")

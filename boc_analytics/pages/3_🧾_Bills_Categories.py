@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-from data_loader import load_all
+from data_loader import load_all, CURRENCY_TO_USD
 from shared_styles import inject_shared_styles, inject_sidebar_brand
 
 st.set_page_config(page_title="BOC · Bills & Categories", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
@@ -66,10 +66,10 @@ filtered = be[
 # ── KPI Strip ─────────────────────────────────────────────────────────────────
 k1, k2, k3, k4, k5 = st.columns(5)
 kv = [
-    ("🧾", f"{len(filtered):,}", "Bills (filtered)"),
-    ("💰", f"${filtered['totalAmount'].sum() / 83.0:,.0f}", "Total Spend (USD)"),
-    ("📊", f"${filtered['totalAmount'].mean() / 83.0:,.1f}", "Avg Bill Amount (USD)"),
-    ("📈", f"${filtered['totalAmount'].median() / 83.0:,.1f}", "Median Bill (USD)"),
+    ("🧾", f"{len(be):,}", "Completed Bills"),
+    ("💰", f"${filtered.apply(lambda r: r['totalAmount'] * CURRENCY_TO_USD.get(r.get('currency',''), 0), axis=1).sum():,.0f}", "Total Spend (USD)"),
+    ("📊", f"${filtered.apply(lambda r: r['totalAmount'] * CURRENCY_TO_USD.get(r.get('currency',''), 0), axis=1).mean():,.1f}", "Avg Bill Amount (USD)"),
+    ("📈", f"${filtered.apply(lambda r: r['totalAmount'] * CURRENCY_TO_USD.get(r.get('currency',''), 0), axis=1).median():,.1f}", "Median Bill (USD)"),
     ("🏷️", str(filtered["category"].nunique()), "Categories"),
 ]
 for col,(icon,val,lbl) in zip([k1,k2,k3,k4,k5],kv):
@@ -231,23 +231,31 @@ st.info('📦 **Spending Insights** — The box plot reveals the spread of bill 
 r3, r4 = st.columns(2)
 
 with r3:
-    box_df = filtered[filtered["totalAmount"] < filtered["totalAmount"].quantile(0.95)].copy()
-    fig = px.box(
-        box_df, x="category", y="totalAmount",
-        title="📦 Spend Distribution by Category",
-        color="category",
-        color_discrete_sequence=["#4F46E5","#0891B2","#059669","#D97706","#DC2626",
-                                  "#2563EB","#DB2777","#65A30D","#EA580C","#7C3AED",
-                                  "#10B981","#3B82F6"],
-        points=False,
-    )
+    cat_spend = filtered.groupby("category")["totalAmount"].sum().reset_index().sort_values("totalAmount", ascending=True)
+    cat_spend["pct"] = (cat_spend["totalAmount"] / cat_spend["totalAmount"].sum() * 100)
+    cat_spend["label"] = cat_spend.apply(lambda r: f"{r['totalAmount']:,.0f} ({r['pct']:.1f}%)", axis=1)
+    fig = go.Figure(go.Bar(
+        x=cat_spend["totalAmount"],
+        y=cat_spend["category"],
+        orientation="h",
+        marker=dict(
+            color=cat_spend["totalAmount"],
+            colorscale=[[0,"#DBEAFE"],[0.3,"#60A5FA"],[0.6,"#2563EB"],[1,"#1E3A8A"]],
+            showscale=False,
+            line=dict(width=0),
+        ),
+        text=cat_spend["label"],
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(color="#FFFFFF", size=11, family="Inter"),
+    ))
     fig.update_layout(
+        title="📦 Total Spend by Category",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#334155"), title_font=dict(color="#1E293B", size=15),
-        height=400, margin=dict(l=10,r=10,t=50,b=60),
-        xaxis=dict(tickangle=-30, gridcolor="rgba(0,0,0,0.06)"),
-        yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
-        showlegend=False,
+        height=400, margin=dict(l=10,r=10,t=50,b=10),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)", title="Total Amount"),
+        yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(color="#475569")),
     )
     st.plotly_chart(fig, width='stretch')
 

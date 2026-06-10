@@ -80,14 +80,13 @@ merchant_freq  = cat_filtered.groupby("merchantName").agg(
 top_merch = merchant_freq.head(top_n)
 
 # ── KPI Strip ─────────────────────────────────────────────────────────────────
-k1, k2, k3, k4 = st.columns(4)
+k1, k2, k3 = st.columns(3)
 kpi_data = [
     ("🏪", f"{be_clean['merchantName'].nunique():,}", "Unique Merchants"),
-    ("🧾", f"{len(cat_filtered):,}", "Total Bills"),
+    ("🧾", f"{len(be):,}", "Completed Bills"),
     ("🏷️", f"{cat_filtered['category'].nunique():,}", "Categories"),
-    ("📦", f"{(be['lineItems_parsed'].apply(len) > 0).sum():,}", "Bills with Items"),
 ]
-for col, (icon, val, lbl) in zip([k1, k2, k3, k4], kpi_data):
+for col, (icon, val, lbl) in zip([k1, k2, k3], kpi_data):
     col.markdown(f"""
     <div class="merch-kpi">
       <div style="font-size:1.6rem">{icon}</div>
@@ -204,39 +203,52 @@ with i1:
         st.info("No line item data available yet.")
 
 with i2:
-    # Merchant drill-down
+    # Merchant drill-down — only show merchants that have line items
     st.markdown("#### 🔍 Merchant → Item Drill-Down")
+
+    # Build list of merchants that actually have items
+    merchants_with_items = []
+    for merch_name in cat_filtered["merchantName"].unique():
+        merch_rows = cat_filtered[cat_filtered["merchantName"] == merch_name]
+        has_items = False
+        for items in merch_rows["lineItems_parsed"].dropna():
+            if isinstance(items, list) and any(i and len(str(i).strip()) > 2 for i in items):
+                has_items = True
+                break
+        if has_items:
+            merchants_with_items.append(merch_name)
+
+    # Deduplicate: group merchants by lowercase name, keep the most common casing
+    from collections import defaultdict
+    merch_case_map = defaultdict(list)
+    for m in merchants_with_items:
+        merch_case_map[m.strip().lower()].append(m)
+    deduped_merchants = []
+    seen_lower = set()
+    for m_lower, variants in merch_case_map.items():
+        if m_lower not in seen_lower:
+            seen_lower.add(m_lower)
+            best = max(variants, key=lambda v: len(cat_filtered[cat_filtered["merchantName"] == v]))
+            deduped_merchants.append(best)
+    deduped_merchants = sorted(deduped_merchants)
+
     sel_merchant = st.selectbox(
         "Select a merchant:",
-        options=sorted(merchant_freq["merchantName"].tolist()),
+        options=deduped_merchants,
         key="merch_select"
     )
     if sel_merchant:
-        merch_bills = cat_filtered[cat_filtered["merchantName"] == sel_merchant].copy()
+        merch_bills = cat_filtered[cat_filtered["merchantName"].str.lower() == sel_merchant.lower()].copy()
         m_items = []
         for items in merch_bills["lineItems_parsed"].dropna():
             if isinstance(items, list):
                 m_items.extend([str(i).strip() for i in items if i and len(str(i).strip()) > 2])
         if m_items:
             mc = Counter(m_items)
-            mdf = pd.DataFrame(mc.most_common(20), columns=["item","count"])
-            fig = px.bar(
-                mdf, x="count", y="item", orientation="h",
-                title=f"🧾 Items at {sel_merchant}",
-                color="count",
-                color_continuous_scale=["#DBEAFE","#3B82F6","#1D4ED8"],
-            )
-            fig.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155"), title_font=dict(color="#1E293B", size=14),
-                height=500, margin=dict(l=10,r=10,t=50,b=10),
-                xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
-                yaxis=dict(gridcolor="rgba(0,0,0,0.0)", tickfont=dict(size=9, color="#475569")),
-                coloraxis_showscale=False,
-                showlegend=False,
-            )
-            st.plotly_chart(fig, width='stretch')
-            # Stats
+            mdf = pd.DataFrame(mc.most_common(20), columns=["Item", "Count"])
+            st.markdown(f"**🧾 Items at {sel_merchant}** ({len(mdf)} unique items)")
+            table_height = min(500, 38 + len(mdf) * 35 + 2)
+            st.dataframe(mdf, width='stretch', hide_index=True, height=table_height)
             st.markdown(f"""
             <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;">
             <span style="background:rgba(8,145,178,0.08);border:1px solid rgba(8,145,178,0.25);
@@ -249,27 +261,39 @@ with i2:
               border-radius:20px;padding:0.3rem 0.8rem;font-size:0.8rem;color:#4F46E5;">
               🏷️ {merch_bills['category'].mode()[0] if len(merch_bills) else 'N/A'}</span>
             </div>""", unsafe_allow_html=True)
-        else:
-            st.info("No line item data available for this merchant.")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Merchant Table ──────────────────────────────────────────────────────────────
-with st.expander("📋 Full Merchant Table"):
-    disp = merchant_freq.copy()
-    disp["total_spend"] = disp["total_spend"].apply(lambda x: f"{x:,.2f}")
-    disp["avg_spend"]   = disp["avg_spend"].apply(lambda x: f"{x:,.2f}")
-    disp.columns = ["Merchant","Bill Count","Total Spend","Avg Spend","Top Category"]
-    _ROWS = 15
-    _total = len(disp)
-    _pages = max(1, (_total + _ROWS - 1) // _ROWS)
-    if "merch_pg" not in st.session_state:
-        st.session_state["merch_pg"] = 1
-    _cpg = st.session_state["merch_pg"]
-    _s = (_cpg - 1) * _ROWS
-    _e = min(_s + _ROWS, _total)
-    st.dataframe(disp.iloc[_s:_e], width='stretch', hide_index=True)
-    st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="merch_page",
-                    on_change=lambda: st.session_state.update({"merch_pg": st.session_state["merch_page"]}))
-    st.caption(f"Showing {_s+1}–{_e} of {_total:,} merchants  ·  Page {_cpg} of {_pages}")
+# ── Merchant Table (ALL merchants, with search) ────────────────────────────────
+st.markdown("### 📋 Full Merchant Table")
 
+all_merchant_stats = be_clean.groupby("merchantName").agg(
+    bill_count=("totalAmount","count"),
+    total_spend=("totalAmount","sum"),
+    avg_spend=("totalAmount","mean"),
+    category=("category", lambda x: x.mode()[0] if len(x) else "other"),
+).reset_index().sort_values("bill_count", ascending=False)
+
+search_term = st.text_input("🔍 Search merchants", placeholder="Type merchant name (e.g. Dmart, Indomaret)...", key="merch_search")
+
+disp = all_merchant_stats.copy()
+if search_term:
+    disp = disp[disp["merchantName"].str.contains(search_term, case=False, na=False)]
+
+disp_fmt = disp.copy()
+disp_fmt["total_spend"] = disp_fmt["total_spend"].apply(lambda x: f"{x:,.2f}")
+disp_fmt["avg_spend"]   = disp_fmt["avg_spend"].apply(lambda x: f"{x:,.2f}")
+disp_fmt.columns = ["Merchant","Bill Count","Total Spend","Avg Spend","Top Category"]
+
+_ROWS = 20
+_total = len(disp_fmt)
+_pages = max(1, (_total + _ROWS - 1) // _ROWS)
+if "merch_pg" not in st.session_state:
+    st.session_state["merch_pg"] = 1
+_cpg = min(st.session_state["merch_pg"], _pages)
+_s = (_cpg - 1) * _ROWS
+_e = min(_s + _ROWS, _total)
+st.dataframe(disp_fmt.iloc[_s:_e], width='stretch', hide_index=True)
+st.number_input("Page", min_value=1, max_value=_pages, value=_cpg, step=1, key="merch_page",
+                on_change=lambda: st.session_state.update({"merch_pg": st.session_state["merch_page"]}))
+st.caption(f"Showing {_s+1}–{_e} of {_total:,} merchants  ·  Page {_cpg} of {_pages}")

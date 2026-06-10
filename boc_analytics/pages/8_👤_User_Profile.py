@@ -93,7 +93,11 @@ u_bills = bill[bill["userId"] == sel_id].copy() if "userId" in bill.columns else
 
 # Bill extractions for this user
 if not u_bills.empty and not be.empty:
-    u_ext = u_bills.merge(be, left_on="id", right_on="billId", how="left")
+    u_ext = u_bills.merge(be, left_on="id", right_on="billId", how="left", suffixes=("_bill",""))
+    # After merge, category from bill_extraction is 'category', from bill is 'category_bill'
+    # If 'category' doesn't exist but 'category_bill' does, use that
+    if "category" not in u_ext.columns and "category_bill" in u_ext.columns:
+        u_ext["category"] = u_ext["category_bill"]
 else:
     u_ext = pd.DataFrame()
 
@@ -165,7 +169,7 @@ stats = [
     (f"{freq}", "Bills Uploaded"),
     (f"{avg_spend:,.1f}", "Avg Bill"),
     (f"{recency_days}d", "Last Active"),
-    (f"{int(u_data.get('rewardBalance',0)):,}", "Reward Balance"),
+    (f"{int(u_data.get('lifetimeRewardPoints', 0) or 0):,}", "Reward Balance"),
     (f"{u_ext['category'].nunique() if not u_ext.empty and 'category' in u_ext.columns else 0}", "Categories Used"),
     (f"{has_wallet}", "Wallet Connected"),
 ]
@@ -255,8 +259,8 @@ with r1:
         st.plotly_chart(fig, width='stretch')
 
         # Summary badges
-        completed  = int(u_bills["status"].isin(["completed","minted","hash_complete"]).sum())
-        minted     = int((u_bills["status"] == "minted").sum())
+        completed  = int(u_bills["status"].isin(["completed"]).sum())
+        minted     = completed  # completed = NFT minted
         duplicated = int(u_bills["status"].str.contains("duplicate", na=False).sum())
         failed     = int(u_bills["status"].str.contains("fail|reject|flag", na=False).sum())
 
